@@ -1,0 +1,2 @@
+const audio=document.querySelector('#audio');const play=document.querySelector('#play');play?.addEventListener('click',()=>{if(audio.paused){audio.play();play.textContent='Ⅱ'}else{audio.pause();play.textContent='▶'}});async function refresh(){try{const r=await fetch('/api/now');const d=await r.json();document.querySelector('#now').textContent=d?`${d.title} · ${d.format}`:'Playlist de secours'}catch{document.querySelector('#now').textContent='Direct'}}refresh();setInterval(refresh,15000);
+

@@ -1,0 +1,23 @@
+sources:
+  - id: brewers-association
+    name: Brewers Association
+    kind: rss
+    url: https://www.brewersassociation.org/feed/
+    enabled: true
+    station: brasserie
+    min_interval_seconds: 15
+  - id: brulosophy
+    name: Brülosophy
+    kind: rss
+    url: https://brulosophy.com/feed/
+    enabled: true
+    station: brassage
+    min_interval_seconds: 15
+  - id: craft-beer-brewing
+    name: Craft Beer & Brewing
+    kind: rss
+    url: https://beerandbrewing.com/rss/
+    enabled: false
+    station: degustation
+    min_interval_seconds: 15
+

@@ -1,0 +1,12 @@
+image: ghcr.io/astral-sh/uv:python3.12-bookworm-slim
+
+stages: [test]
+
+test:
+  stage: test
+  script:
+    - apt-get update && apt-get install -y --no-install-recommends ffmpeg
+    - uv sync --extra dev --frozen
+    - uv run ruff check .
+    - uv run pytest --cov=bsc_radio --cov-report=term-missing
+

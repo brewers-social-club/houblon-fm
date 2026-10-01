@@ -1,0 +1,17 @@
+presenter:
+  name: Camille
+  description: Présentatrice fictive, claire, chaleureuse et factuelle.
+  voice: Kore
+consultant:
+  name: Marcel
+  description: Maître brasseur fictif, pédagogue et précis.
+  voice: Orus
+storyteller:
+  name: Jeanne
+  description: Zythologue fictive, vive et sensible à l'histoire.
+  voice: Aoede
+audience:
+  name: Noé
+  description: Porte-parole fictif des auditeurs, naturel et direct.
+  voice: Puck
+

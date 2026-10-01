@@ -1,0 +1,12 @@
+series:
+  - id: brulosophy-exbeeriments
+    name: Brülosophy exBEERiments
+    channel_url: https://www.youtube.com/@Brulosophy
+    enabled: false
+    station: brassage
+  - id: david-heath-recipes
+    name: David Heath Homebrew
+    channel_url: https://www.youtube.com/@DavidHeathHomebrew
+    enabled: false
+    station: brassage
+

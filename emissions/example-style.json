@@ -1,0 +1,14 @@
+{
+  "slug": "comprendre-la-saison",
+  "title": "Comprendre la Saison",
+  "format": "style",
+  "station": "degustation",
+  "summary": "Exemple de script manuel. Remplacer les fact_ids par de vrais faits avant import.",
+  "script": [
+    {
+      "character": "presenter",
+      "text": "Cette émission est écrite et lue par des intelligences artificielles.",
+      "fact_ids": []
+    }
+  ]
+}

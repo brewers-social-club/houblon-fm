@@ -1,0 +1,15 @@
+formats:
+  journal: {label: Le Journal, min_minutes: 3, max_minutes: 4, fresh: true, voices: [presenter]}
+  headlines: {label: Les Titres, min_minutes: 0.5, max_minutes: 1, fresh: true, voices: [presenter]}
+  awards: {label: Le Palmarès, min_minutes: 6, max_minutes: 8, fresh: true, voices: [presenter, consultant]}
+  week: {label: La Semaine, min_minutes: 6, max_minutes: 8, fresh: true, voices: [presenter, consultant]}
+  portrait: {label: La Visite, min_minutes: 3, max_minutes: 5, fresh: false, voices: [storyteller]}
+  recipe: {label: La Recette, min_minutes: 3, max_minutes: 5, fresh: false, voices: [consultant]}
+  style: {label: Le Style, min_minutes: 2, max_minutes: 4, fresh: false, voices: [storyteller]}
+  glossary: {label: Le mot du brasseur, min_minutes: 0.7, max_minutes: 1.3, fresh: false, voices: [presenter]}
+  feedback: {label: Le Courrier des auditeurs, min_minutes: 3, max_minutes: 5, fresh: false, voices: [audience, presenter]}
+fixed_slots:
+  - {format: journal, time: "07:30"}
+  - {format: journal, time: "18:45", event_day_only: true}
+  - {format: week, weekday: 6, time: "18:00"}
+
