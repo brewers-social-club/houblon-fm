@@ -9,6 +9,9 @@ htmlcov/
 data/
 site/public/data/*.json
 site/public/audio/
+site/public/episodes/
+site/public/index.html
+site/public/podcast.xml
+site/public/sitemap.xml
 *.sqlite3
 *.db
-
