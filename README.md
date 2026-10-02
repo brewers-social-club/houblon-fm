@@ -71,6 +71,9 @@ radio collect
 radio facts
 radio topics --hours 48
 radio run --fmt journal
+radio episodes
+radio episodes --status failed
+radio resume 42
 radio import-scripts emissions
 radio voice-queue --max 3
 radio say "Une India Pale Ale houblonnée" --character presenter

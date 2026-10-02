@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import re
 
 import typer
 
@@ -15,6 +16,65 @@ from .publish import Publisher
 from .sidecar import create_app
 
 app = typer.Typer(no_args_is_help=True, help="Houblon FM — pipeline de webradio sourcée")
+
+
+def _safe_failure_message(exc: Exception) -> str:
+    message = re.sub(
+        r"\b(?:sk|sess|eyJ)[A-Za-z0-9._-]{12,}\b",
+        "[secret redacted]",
+        str(exc),
+    )
+    return message.strip()[-1800:] or exc.__class__.__name__
+
+
+def _mark_episode_failed(db: Database, episode_id: int, stage: str, exc: Exception) -> str:
+    message = _safe_failure_message(exc)
+    db.execute(
+        """UPDATE episode SET status='failed',rejection_reason=?,updated_at=CURRENT_TIMESTAMP
+        WHERE id=?""",
+        (f"{stage}: {message}", episode_id),
+    )
+    db.execute(
+        "INSERT INTO incident(kind,message,context_json) VALUES(?,?,?)",
+        (
+            "pipeline",
+            message,
+            json.dumps({"episode_id": episode_id, "stage": stage}),
+        ),
+    )
+    return message
+
+
+def _finish_episode(settings, db, editorial, audio, episode_id: int) -> dict[str, object]:
+    episode = db.one("SELECT * FROM episode WHERE id=?", (episode_id,))
+    if not episode:
+        raise ValueError(f"Épisode #{episode_id} introuvable")
+    if episode["status"] == "rejected":
+        raise ValueError("Épisode rejeté éditorialement ; corrigez son script avant reprise")
+    if episode["status"] == "published":
+        return {"status": "published", "episode_id": episode_id, "already_done": True}
+
+    audio_row = db.one("SELECT id,path FROM audio WHERE episode_id=?", (episode_id,))
+    stage = "verify"
+    try:
+        if not audio_row and episode["status"] not in {"verified", "audio"}:
+            verdict = editorial.verify_episode(episode_id)
+            if verdict["status"] == "rejected":
+                return {"status": "rejected", "episode_id": episode_id}
+        if not audio_row:
+            stage = "audio"
+            audio.produce(episode_id)
+        elif episode["status"] != "audio":
+            db.execute(
+                "UPDATE episode SET status='audio',rejection_reason=NULL WHERE id=?",
+                (episode_id,),
+            )
+        stage = "publish"
+        Publisher(settings, db).publish()
+        return {"status": "published", "episode_id": episode_id, "already_done": False}
+    except Exception as exc:
+        _mark_episode_failed(db, episode_id, stage, exc)
+        raise
 
 
 def services():
@@ -66,17 +126,62 @@ def topics(hours: int = 48):
 @app.command()
 def run(fmt: str = "journal", hours: int = 48, skip_collect: bool = False):
     settings, db, editorial, audio = services()
-    if not skip_collect:
-        Collector(settings, db).collect_all()
-    editorial.extract_pending()
-    editorial.build_topics()
-    episode_id = editorial.write_episode(fmt, hours)
-    verdict = editorial.verify_episode(episode_id)
-    if verdict["status"] == "rejected":
+    try:
+        if not skip_collect:
+            Collector(settings, db).collect_all()
+        editorial.extract_pending()
+        editorial.build_topics()
+        episode_id = editorial.write_episode(fmt, hours)
+        result = _finish_episode(settings, db, editorial, audio, episode_id)
+    except Exception as exc:
+        typer.echo(f"Échec du pipeline : {_safe_failure_message(exc)}", err=True)
+        raise typer.Exit(1) from exc
+    if result["status"] == "rejected":
+        typer.echo(f"Épisode #{episode_id} rejeté par la vérification", err=True)
         raise typer.Exit(2)
-    path = audio.produce(episode_id)
-    Publisher(settings, db).publish()
-    typer.echo(f"Épisode #{episode_id}: {path}")
+    row = db.one("SELECT path FROM audio WHERE episode_id=?", (episode_id,))
+    typer.echo(f"Épisode #{episode_id}: {row['path']}")
+
+
+@app.command()
+def episodes(
+    status: str | None = typer.Option(None, "--status", help="Filtrer par statut"),
+    limit: int = typer.Option(50, "--limit", min=1, max=500),
+):
+    """Liste les émissions, y compris les brouillons et les échecs."""
+    _, db, _, _ = services()
+    where = "WHERE status=?" if status else ""
+    params = (status, limit) if status else (limit,)
+    rows = db.all(
+        f"""SELECT id,title,format,status,created_at,rejection_reason FROM episode
+        {where} ORDER BY id DESC LIMIT ?""",
+        params,
+    )
+    if not rows:
+        typer.echo("Aucun épisode")
+        return
+    for row in rows:
+        failure = f" — {row['rejection_reason']}" if row["rejection_reason"] else ""
+        typer.echo(
+            f"#{row['id']} [{row['status']}] {row['format']} — {row['title']} "
+            f"({row['created_at']}){failure}"
+        )
+
+
+@app.command()
+def resume(episode_id: int):
+    """Reprend une émission incomplète sans répéter les étapes déjà terminées."""
+    settings, db, editorial, audio = services()
+    try:
+        result = _finish_episode(settings, db, editorial, audio, episode_id)
+    except Exception as exc:
+        typer.echo(f"Échec de la reprise #{episode_id} : {_safe_failure_message(exc)}", err=True)
+        raise typer.Exit(1) from exc
+    if result["status"] == "rejected":
+        typer.echo(f"Épisode #{episode_id} rejeté par la vérification", err=True)
+        raise typer.Exit(2)
+    suffix = " (déjà publié)" if result.get("already_done") else ""
+    typer.echo(f"Épisode #{episode_id} publié{suffix}")
 
 
 @app.command()
