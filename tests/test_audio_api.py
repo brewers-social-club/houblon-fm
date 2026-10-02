@@ -58,13 +58,14 @@ def test_admin_requires_password(tmp_path: Path):
 
 
 def test_liquidsoap_has_an_infallible_last_resort():
-    script = (Path(__file__).parents[1] / "deploy/liquidsoap.liq").read_text(encoding="utf-8")
+    root = Path(__file__).parents[1]
+    script = (root / "deploy/liquidsoap.liq").read_text(encoding="utf-8")
+    dockerfile = (root / "deploy/Dockerfile.liquidsoap").read_text(encoding="utf-8")
     assert "mksafe(fallback(" in script
-    assert "http.get(" in script
-    assert "result.status_code == 200" in script
-    assert "process.read(" not in script
-    assert "curl " not in script
+    assert 'process.read("/usr/bin/curl -fsS --max-time 5 ' in script
     assert "single(fallible=true, fallback_file)" in script
+    assert "FROM savonet/liquidsoap:v2.3.2" in dockerfile
+    assert "apt-get install -y --no-install-recommends curl" in dockerfile
 
 
 def test_compose_forces_shared_container_paths():
@@ -75,4 +76,8 @@ def test_compose_forces_shared_container_paths():
         "RADIO_DATA_DIR": "/data",
         "RADIO_CONFIG_DIR": "/app/config",
         "RADIO_SITE_DIR": "/site",
+    }
+    assert compose["services"]["liquidsoap"]["build"] == {
+        "context": ".",
+        "dockerfile": "deploy/Dockerfile.liquidsoap",
     }

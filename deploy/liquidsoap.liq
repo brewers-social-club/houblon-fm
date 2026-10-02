@@ -2,17 +2,8 @@ set("log.stdout", true)
 set("server.telnet", true)
 fallback_file = "/data/fallback.mp3"
 def next_track() =
-  try
-    result = http.get(timeout=5., "http://sidecar:8081/next")
-    if result.status_code == 200 and string.trim(result) != "" then
-      string.trim(result)
-    else
-      fallback_file
-    end
-  catch err do
-    log.warn("Programmateur indisponible: #{err.message}")
-    fallback_file
-  end
+  result = process.read("/usr/bin/curl -fsS --max-time 5 http://sidecar:8081/next")
+  if result == "" then fallback_file else string.trim(result) end
 end
 radio = request.dynamic(id="scheduler", fun () -> request.create(next_track()))
 radio = mksafe(fallback(track_sensitive=false, [radio, single(fallible=true, fallback_file)]))

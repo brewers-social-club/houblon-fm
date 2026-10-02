@@ -18,7 +18,9 @@ services:
       ICECAST_HOSTNAME: localhost
     ports: ["8000:8000"]
   liquidsoap:
-    image: savonet/liquidsoap:v2.3.2
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.liquidsoap
     depends_on:
       sidecar:
         condition: service_healthy
