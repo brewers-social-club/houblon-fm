@@ -139,11 +139,18 @@ class AudioProducer:
         seconds = duration(destination)
         checksum = hashlib.sha256(destination.read_bytes()).hexdigest()
         with self.db.transaction() as connection:
-            connection.execute("DELETE FROM audio WHERE episode_id=?", (episode_id,))
-            connection.execute(
-                "INSERT INTO audio(episode_id,path,duration_seconds,lufs,checksum) VALUES(?,?,?,?,?)",
-                (episode_id, str(destination), seconds, -16.0, checksum),
+            updated = connection.execute(
+                """UPDATE audio
+                SET path=?,duration_seconds=?,bitrate=128,lufs=?,checksum=?,created_at=CURRENT_TIMESTAMP
+                WHERE episode_id=?""",
+                (str(destination), seconds, -16.0, checksum, episode_id),
             )
+            if updated.rowcount == 0:
+                connection.execute(
+                    """INSERT INTO audio(episode_id,path,duration_seconds,lufs,checksum)
+                    VALUES(?,?,?,?,?)""",
+                    (episode_id, str(destination), seconds, -16.0, checksum),
+                )
             connection.execute(
                 "UPDATE episode SET status='audio',updated_at=CURRENT_TIMESTAMP WHERE id=?",
                 (episode_id,),

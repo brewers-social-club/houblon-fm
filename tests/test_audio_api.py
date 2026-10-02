@@ -4,7 +4,7 @@ from types import SimpleNamespace
 import yaml
 from fastapi.testclient import TestClient
 
-from bsc_radio.audio import duration, group_script_takes
+from bsc_radio.audio import AudioProducer, duration, group_script_takes
 from bsc_radio.db import Database
 from bsc_radio.providers import ElevenLabsVoiceProvider, GeminiVoiceProvider, MockVoiceProvider
 from bsc_radio.sidecar import create_app
@@ -85,6 +85,41 @@ def test_consecutive_lines_share_one_voice_take():
         {"character": "presenter", "text": "Première phrase.\n\nDeuxième phrase."},
         {"character": "consultant", "text": "Réponse."},
     ]
+
+
+def test_revoice_preserves_audio_id_referenced_by_airing(tmp_path: Path):
+    cfg = settings(tmp_path)
+    db = Database(cfg.database)
+    db.migrate()
+    episode_id = db.execute(
+        """INSERT INTO episode(slug,title,format,station,status,script_json)
+        VALUES(?,?,?,?,?,?)""",
+        (
+            "episode-parle",
+            "Épisode parlé",
+            "journal",
+            "brasserie",
+            "verified",
+            '[{"character":"presenter","text":"Bonjour la radio."}]',
+        ),
+    )
+    audio_id = db.execute(
+        """INSERT INTO audio(episode_id,path,duration_seconds,checksum)
+        VALUES(?,?,?,?)""",
+        (episode_id, "/ancien/audio.mp3", 1, "ancien"),
+    )
+    db.execute(
+        "INSERT INTO airing(episode_id,audio_id,started_at) VALUES(?,?,CURRENT_TIMESTAMP)",
+        (episode_id, audio_id),
+    )
+
+    output = AudioProducer(cfg, db, MockVoiceProvider()).produce(episode_id)
+
+    row = db.one("SELECT id,path,checksum FROM audio WHERE episode_id=?", (episode_id,))
+    assert row["id"] == audio_id
+    assert row["path"] == str(output)
+    assert row["checksum"] != "ancien"
+    assert db.one("SELECT audio_id FROM airing WHERE episode_id=?", (episode_id,))["audio_id"] == audio_id
 
 
 def test_health_and_auth_flow(tmp_path: Path):
