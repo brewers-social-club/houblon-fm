@@ -298,11 +298,11 @@ class Collector:
         import_history = str(source.get("history", "recent")).casefold() == "all"
         max_age = None
         if not import_history:
-            max_age = dt.timedelta(
-                days=int(
-                    source.get("max_age_days", self.settings.radio.get("item_max_age_days", 21))
-                )
+            configured_max_age = source.get(
+                "max_age_days", self.settings.radio.get("item_max_age_days", 21)
             )
+            if configured_max_age is not None:
+                max_age = dt.timedelta(days=int(configured_max_age))
         inserted = skipped = 0
         skipped_reasons: Counter[str] = Counter()
         for entry in feed.entries:

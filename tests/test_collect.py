@@ -134,6 +134,7 @@ def test_collect_reports_aggregated_skip_reasons(tmp_path, monkeypatch):
         "url": "https://source.test/feed",
         "station": "brassage",
         "enabled": True,
+        "max_age_days": 21,
         "min_interval_seconds": 0,
     }
     db.execute(
@@ -173,6 +174,49 @@ def test_collect_reports_aggregated_skip_reasons(tmp_path, monkeypatch):
         "missing_date": 1,
         "invalid_url": 1,
     }
+
+
+def test_global_null_max_age_imports_old_items(tmp_path, monkeypatch):
+    cfg = settings(tmp_path)
+    db = Database(cfg.database)
+    db.migrate()
+    source = {
+        "id": "archive",
+        "name": "Archive",
+        "kind": "rss",
+        "url": "https://source.test/feed",
+        "station": "brassage",
+        "enabled": True,
+        "content_mode": "feed",
+        "min_interval_seconds": 0,
+    }
+    db.execute(
+        "INSERT INTO source(id,name,kind,url,station) VALUES(?,?,?,?,?)",
+        (source["id"], source["name"], source["kind"], source["url"], source["station"]),
+    )
+    parsed = SimpleNamespace(
+        entries=[
+            {
+                "link": "https://source.test/ancien-article",
+                "published": "Mon, 01 Jan 2018 12:00:00 +0000",
+                "title": "Ancien article",
+                "summary": "Contenu brassicole historique suffisamment détaillé. " * 5,
+            }
+        ],
+        bozo=False,
+    )
+    monkeypatch.setattr(feedparser, "parse", lambda _content: parsed)
+    monkeypatch.setattr(
+        httpx,
+        "get",
+        lambda url, **_kwargs: FakeResponse(content=b"rss", url=url),
+    )
+    collector = Collector(cfg, db)
+    monkeypatch.setattr(collector, "_allowed", lambda _url: True)
+    monkeypatch.setattr(collector, "_effective_delay", lambda _url, delay: delay)
+
+    assert collector.collect_source(source) == (1, 0)
+    assert collector._last_skip_reasons == {}
 
 
 def test_podcast_can_import_full_history_from_feed_content(tmp_path, monkeypatch):

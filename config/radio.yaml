@@ -7,7 +7,6 @@ health_notice: L'abus d'alcool est dangereux pour la santé. À consommer avec m
 stations: [brasserie, brassage, degustation]
 fresh_ratio: 0.25
 raw_text_retention_days: 30
-item_max_age_days: 21
+item_max_age_days: null
 topic_window_hours: 72
 monthly_budget_eur: 25
-
