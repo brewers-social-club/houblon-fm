@@ -27,7 +27,7 @@ class EditorialPipeline:
     def extract_pending(self, limit: int = 25) -> int:
         items = self.db.all(
             """SELECT i.*, s.name source_name FROM item i JOIN source s ON s.id=i.source_id
-            WHERE i.status='new' AND i.raw_text IS NOT NULL ORDER BY i.published_at LIMIT ?""",
+            WHERE i.status='new' AND i.raw_text IS NOT NULL ORDER BY i.published_at DESC LIMIT ?""",
             (limit,),
         )
         done = 0
@@ -88,15 +88,40 @@ class EditorialPipeline:
         return [
             dict(row)
             for row in self.db.all(
-                """SELECT DISTINCT f.* FROM fact f JOIN topic_fact tf ON tf.fact_id=f.id
-                JOIN topic t ON t.id=tf.topic_id WHERE t.last_seen_at >= ?
-                ORDER BY f.reliability DESC, f.created_at DESC LIMIT ?""",
+                """WITH eligible AS (
+                    SELECT DISTINCT f.*, i.source_id,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY i.source_id
+                            ORDER BY f.reliability DESC, f.created_at DESC
+                        ) AS source_rank
+                    FROM fact f
+                    JOIN item i ON i.id=f.item_id
+                    JOIN topic_fact tf ON tf.fact_id=f.id
+                    JOIN topic t ON t.id=tf.topic_id
+                    WHERE i.published_at >= ?
+                    AND NOT EXISTS (
+                        SELECT 1
+                        FROM sentence used_sentence
+                        JOIN episode used_episode ON used_episode.id=used_sentence.episode_id
+                        JOIN json_each(used_sentence.fact_ids_json) used_fact
+                        WHERE CAST(used_fact.value AS INTEGER)=f.id
+                        AND used_episode.status!='rejected'
+                    )
+                )
+                SELECT * FROM eligible
+                ORDER BY source_rank, reliability DESC, created_at DESC
+                LIMIT ?""",
                 (threshold, limit),
             )
         ]
 
     def write_episode(self, fmt: str, hours: int = 48, title: str | None = None) -> int:
         facts = self.facts_for_episode(hours)
+        if not facts:
+            raise ValueError(
+                "Aucun fait inédit disponible pour cette période. "
+                "Collectez de nouvelles sources ou augmentez --hours."
+            )
         radio = self.settings.radio
         context = {
             "date": dt.datetime.now(dt.UTC).isoformat(),

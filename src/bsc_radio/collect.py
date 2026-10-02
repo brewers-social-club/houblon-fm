@@ -70,21 +70,60 @@ class Collector:
             time.sleep(delay - elapsed)
         self._last_domain_fetch[domain] = time.monotonic()
 
-    def collect_all(self) -> dict[str, int]:
+    def collect_all(self) -> dict[str, Any]:
         self.sync_sources()
-        result = {"sources": 0, "items": 0, "skipped": 0}
+        result: dict[str, Any] = {
+            "sources": 0,
+            "items": 0,
+            "skipped": 0,
+            "failed_sources": [],
+            "details": [],
+        }
         for source in self.settings.sources:
             if not source.get("enabled", True):
                 continue
             result["sources"] += 1
+            started_at = dt.datetime.now(dt.UTC).isoformat()
+            fetch_id = self.db.execute(
+                "INSERT INTO source_fetch(source_id,started_at) VALUES(?,?)",
+                (source["id"], started_at),
+            )
             try:
                 count, skipped = self.collect_source(source)
                 result["items"] += count
                 result["skipped"] += skipped
+                finished_at = dt.datetime.now(dt.UTC).isoformat()
+                self.db.execute(
+                    """UPDATE source_fetch
+                    SET finished_at=?,status_code=200,item_count=? WHERE id=?""",
+                    (finished_at, count, fetch_id),
+                )
+                self.db.execute(
+                    "UPDATE source SET last_fetch_at=? WHERE id=?",
+                    (finished_at, source["id"]),
+                )
+                result["details"].append(
+                    {
+                        "source": source["id"],
+                        "status": "ok",
+                        "items": count,
+                        "skipped": skipped,
+                    }
+                )
             except Exception as exc:
+                error = str(exc)
+                self.db.execute(
+                    """UPDATE source_fetch
+                    SET finished_at=?,error=? WHERE id=?""",
+                    (dt.datetime.now(dt.UTC).isoformat(), error, fetch_id),
+                )
                 self.db.execute(
                     "INSERT INTO incident(kind,message,context_json) VALUES(?,?,?)",
-                    ("collect", str(exc), json.dumps({"source": source["id"]})),
+                    ("collect", error, json.dumps({"source": source["id"]})),
+                )
+                result["failed_sources"].append(source["id"])
+                result["details"].append(
+                    {"source": source["id"], "status": "error", "error": error}
                 )
         self.purge_raw_text()
         return result
@@ -100,10 +139,13 @@ class Collector:
 
         self._wait(source["url"], float(source.get("min_interval_seconds", 10)))
         response = httpx.get(
-            source["url"], headers={"User-Agent": self.settings.user_agent}, timeout=30
+            source["url"],
+            headers={"User-Agent": self.settings.user_agent},
+            timeout=30,
+            follow_redirects=True,
         )
         response.raise_for_status()
-        feed = feedparser.loads(response.content)
+        feed = feedparser.parse(response.content)
         now = dt.datetime.now(dt.UTC)
         max_age = dt.timedelta(days=int(self.settings.radio.get("item_max_age_days", 21)))
         inserted = skipped = 0
