@@ -4,6 +4,8 @@ import hashlib
 import hmac
 import json
 import os
+import time
+from base64 import urlsafe_b64decode, urlsafe_b64encode
 from pathlib import Path
 from typing import Annotated
 
@@ -27,6 +29,28 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     scheduler = Scheduler(settings, db)
     app = FastAPI(title="Houblon FM sidecar", version="0.1.0")
 
+    def admin_token(login: str, expires_at: int) -> str:
+        payload = f"{login}:{expires_at}".encode()
+        signature = hmac.new(settings.session_secret.encode(), payload, hashlib.sha256).hexdigest()
+        return urlsafe_b64encode(payload + b":" + signature.encode()).decode().rstrip("=")
+
+    def valid_admin_token(token: str | None) -> bool:
+        if not token:
+            return False
+        try:
+            padded = token + "=" * (-len(token) % 4)
+            decoded = urlsafe_b64decode(padded.encode())
+            payload, signature = decoded.rsplit(b":", 1)
+            login, expires = payload.decode().rsplit(":", 1)
+            expected = hmac.new(settings.session_secret.encode(), payload, hashlib.sha256).hexdigest()
+            return (
+                hmac.compare_digest(signature.decode(), expected)
+                and hmac.compare_digest(login, settings.admin_login)
+                and int(expires) >= int(time.time())
+            )
+        except (ValueError, TypeError, UnicodeDecodeError):
+            return False
+
     def current_user(radio_session: Annotated[str | None, Cookie()] = None):
         return auth.user_for_session(radio_session)
 
@@ -36,8 +60,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return user
 
     def required_admin(request: Request):
+        if valid_admin_token(request.cookies.get("radio_admin_session")):
+            return
         supplied = request.headers.get("x-radio-admin-password", "")
-        if not hmac.compare_digest(supplied, settings.admin_password):
+        if not hmac.compare_digest(supplied.encode(), settings.admin_password.encode()):
             raise HTTPException(401, "Administration protégée")
 
     @app.get("/health")
@@ -162,6 +188,37 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         hours = db.one("SELECT COALESCE(SUM(duration_seconds),0)/3600 hours FROM audio")["hours"]
         costs = db.one("SELECT COALESCE(SUM(cost_micro_eur),0)/1000000.0 eur FROM cost")["eur"]
         return {"episodes": episodes, "hours": round(hours, 1), "monthly_cost_eur": round(costs, 2)}
+
+    @app.post("/api/admin/login")
+    def admin_login(
+        response: Response,
+        login: Annotated[str, Form()],
+        password: Annotated[str, Form()],
+    ):
+        login_ok = hmac.compare_digest(login.strip().encode(), settings.admin_login.encode())
+        password_ok = hmac.compare_digest(password.encode(), settings.admin_password.encode())
+        if not (login_ok and password_ok):
+            raise HTTPException(401, "Identifiants invalides")
+        max_age = 12 * 60 * 60
+        response.set_cookie(
+            "radio_admin_session",
+            admin_token(settings.admin_login, int(time.time()) + max_age),
+            httponly=True,
+            secure=settings.site_url.startswith("https"),
+            samesite="lax",
+            max_age=max_age,
+            path="/",
+        )
+        return {"ok": True, "login": settings.admin_login}
+
+    @app.post("/api/admin/logout")
+    def admin_logout(response: Response):
+        response.delete_cookie("radio_admin_session", path="/")
+        return {"ok": True}
+
+    @app.get("/api/admin/session", dependencies=[Depends(required_admin)])
+    def admin_session():
+        return {"authenticated": True, "login": settings.admin_login}
 
     @app.get("/api/admin/dashboard", dependencies=[Depends(required_admin)])
     def admin_dashboard():

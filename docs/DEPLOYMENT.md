@@ -5,6 +5,10 @@
 Copier `.env.example` vers `.env`, changer les mots de passe, lancer `radio init`, puis
 `docker compose up --build`.
 
+Définir `RADIO_ADMIN_LOGIN`, `RADIO_ADMIN_PASSWORD` et un `RADIO_SESSION_SECRET` long et
+aléatoire. L'administration utilise un cookie signé `HttpOnly` valable 12 heures ; aucun fichier
+`.htpasswd` nginx n'est nécessaire.
+
 Pour `RADIO_AI_PROVIDER=codex`, installer le CLI Codex et effectuer `codex login` sur l'hôte
 (`codex login --device-auth` sur un serveur sans navigateur).
 Lancer les commandes de production éditoriale (`radio facts`, `radio run`, `radio stock`) sur

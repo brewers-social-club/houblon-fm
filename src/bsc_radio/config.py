@@ -28,6 +28,7 @@ class Settings:
     user_agent: str
     ai_provider: str
     tts_provider: str
+    admin_login: str
     admin_password: str
     session_secret: str
     anthropic_api_key: str
@@ -66,6 +67,7 @@ class Settings:
             user_agent=os.getenv("USER_AGENT", "BscRadioBot/0.1 (+https://example.test)"),
             ai_provider=os.getenv("RADIO_AI_PROVIDER", "mock"),
             tts_provider=os.getenv("RADIO_TTS_PROVIDER", "mock"),
+            admin_login=os.getenv("RADIO_ADMIN_LOGIN", "admin").strip() or "admin",
             admin_password=os.getenv("RADIO_ADMIN_PASSWORD", "change-me"),
             session_secret=os.getenv("RADIO_SESSION_SECRET", "development-only"),
             anthropic_api_key=os.getenv("ANTHROPIC_API_KEY", ""),

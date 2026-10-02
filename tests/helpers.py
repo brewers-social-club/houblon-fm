@@ -17,6 +17,7 @@ def settings(tmp: Path) -> Settings:
         user_agent="RadioTest/1",
         ai_provider="mock",
         tts_provider="mock",
+        admin_login="admin",
         admin_password="admin",
         session_secret="secret",
         anthropic_api_key="",

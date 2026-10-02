@@ -1,2 +1,39 @@
-<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Administration · Houblon FM</title><link rel="stylesheet" href="/assets/app.css"></head><body><header><a class="brand" href="/">Houblon FM</a></header><main><section><p class="eyebrow">ADMINISTRATION</p><h1>Le studio</h1><div id="dashboard" class="grid"><p>Chargement…</p></div></section></main><script>fetch('/api/admin/dashboard',{headers:{'x-radio-admin-password':prompt('Mot de passe administrateur')}}).then(r=>r.json()).then(d=>{document.querySelector('#dashboard').innerHTML=`<article class="card"><span>Coûts</span><h3>${Number(d.cost_eur).toFixed(2)} €</h3></article><article class="card"><span>Incidents</span><h3>${d.incidents.length}</h3></article><article class="card"><span>Tâches</span><h3>${d.tasks.length}</h3></article><article class="card"><span>Avis</span><h3>${d.feedback.length}</h3></article>`}).catch(()=>document.querySelector('#dashboard').textContent='Accès refusé')</script></body></html>
-
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Administration · Houblon FM</title>
+  <link rel="stylesheet" href="/assets/app.css">
+  <script src="/admin/app.js" defer></script>
+</head>
+<body>
+  <header>
+    <a class="brand" href="/">Houblon FM</a>
+    <button id="logout" class="admin-link" type="button" hidden>Déconnexion</button>
+  </header>
+  <main class="admin-shell">
+    <section id="login-panel" class="admin-login">
+      <p class="eyebrow">ADMINISTRATION</p>
+      <h1>Le studio</h1>
+      <form id="login-form" class="admin-form">
+        <label>
+          <span>Identifiant</span>
+          <input name="login" autocomplete="username" required autofocus>
+        </label>
+        <label>
+          <span>Mot de passe</span>
+          <input name="password" type="password" autocomplete="current-password" required>
+        </label>
+        <button class="primary" type="submit">Connexion</button>
+        <p id="login-status" class="admin-status" role="status"></p>
+      </form>
+    </section>
+    <section id="dashboard-panel" hidden>
+      <p class="eyebrow">ADMINISTRATION</p>
+      <h1>Le studio</h1>
+      <div id="dashboard" class="grid"><p>Chargement…</p></div>
+    </section>
+  </main>
+</body>
+</html>

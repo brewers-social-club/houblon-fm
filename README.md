@@ -24,7 +24,19 @@ docker compose up --build
 - site : <http://localhost:8080>
 - direct Icecast : <http://localhost:8000/live.mp3>
 - API : <http://localhost:8081/health>
-- administration : <http://localhost:8080/admin/> (Basic Auth nginx)
+- administration : <http://localhost:8080/admin/> (session applicative)
+
+L'administration utilise un formulaire applicatif et une session `HttpOnly` valable 12 heures.
+Configurez les identifiants dans `.env` avant toute exposition réseau :
+
+```env
+RADIO_ADMIN_LOGIN=admin
+RADIO_ADMIN_PASSWORD=change-me
+RADIO_SESSION_SECRET=change-this-with-32-random-bytes
+```
+
+Le mot de passe n'est jamais conservé dans le navigateur. Le secret de session signe le cookie
+administrateur ; le changer ferme toutes les sessions existantes.
 
 Le mode `mock` produit une démonstration intégrale sans clé API. Pour utiliser le compte
 ChatGPT/Codex connecté sur la machine, lance une fois `codex login` (ou

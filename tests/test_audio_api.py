@@ -172,14 +172,48 @@ def test_next_maps_legacy_host_audio_path_into_shared_data_dir(tmp_path: Path):
     assert response.text == str(audio)
 
 
-def test_admin_requires_password(tmp_path: Path):
+def test_admin_login_creates_session_and_logout_revokes_browser_access(tmp_path: Path):
     cfg = settings(tmp_path)
     client = TestClient(create_app(cfg))
     assert client.get("/api/admin/dashboard").status_code == 401
+    rejected = client.post(
+        "/api/admin/login",
+        data={"login": "administrateur-érroné", "password": "incorrect-🔒"},
+    )
+    assert rejected.status_code == 401
+    logged_in = client.post(
+        "/api/admin/login",
+        data={"login": "admin", "password": "admin"},
+    )
+    assert logged_in.status_code == 200
+    cookie = logged_in.headers["set-cookie"]
+    assert "radio_admin_session=" in cookie
+    assert "HttpOnly" in cookie
+    assert "SameSite=lax" in cookie
+    assert client.get("/api/admin/session").json() == {
+        "authenticated": True,
+        "login": "admin",
+    }
+    assert client.get("/api/admin/dashboard").status_code == 200
+    assert client.post("/api/admin/logout").status_code == 200
+    assert client.get("/api/admin/dashboard").status_code == 401
+
+
+def test_admin_header_remains_available_for_internal_clients(tmp_path: Path):
+    cfg = settings(tmp_path)
+    client = TestClient(create_app(cfg))
     assert (
         client.get("/api/admin/dashboard", headers={"x-radio-admin-password": "admin"}).status_code
         == 200
     )
+
+
+def test_nginx_delegates_admin_authentication_to_application():
+    root = Path(__file__).parents[1]
+    config = (root / "deploy/nginx.conf").read_text(encoding="utf-8")
+    example = (root / ".env.example").read_text(encoding="utf-8")
+    assert "auth_basic" not in config
+    assert "RADIO_ADMIN_LOGIN=admin" in example
 
 
 def test_liquidsoap_has_an_infallible_last_resort():
