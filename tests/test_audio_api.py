@@ -21,6 +21,9 @@ def test_health_and_auth_flow(tmp_path: Path):
     cfg = settings(tmp_path)
     client = TestClient(create_app(cfg))
     assert client.get("/health").json()["ok"] is True
+    fallback = cfg.data_dir / "fallback.mp3"
+    assert fallback.is_file()
+    assert fallback.stat().st_size > 0
     created = client.post(
         "/api/register",
         data={"email": "radio@example.test", "password": "a-secure-password"},
@@ -42,3 +45,8 @@ def test_admin_requires_password(tmp_path: Path):
         client.get("/api/admin/dashboard", headers={"x-radio-admin-password": "admin"}).status_code
         == 200
     )
+
+
+def test_liquidsoap_has_an_infallible_last_resort():
+    script = (Path(__file__).parents[1] / "deploy/liquidsoap.liq").read_text(encoding="utf-8")
+    assert "mksafe(fallback(" in script

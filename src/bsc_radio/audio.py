@@ -26,6 +26,38 @@ def duration(path: Path) -> float:
     return float(result.stdout.strip())
 
 
+def make_tone(output: Path, seconds: float = 1.2, frequency: int = 523) -> Path:
+    """Generate a rights-free station tone with an atomic publication."""
+    output.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="radio-tone-", dir=output.parent) as directory:
+        temporary = Path(directory) / output.name
+        _run(
+            [
+                "ffmpeg",
+                "-y",
+                "-loglevel",
+                "error",
+                "-f",
+                "lavfi",
+                "-i",
+                f"sine=frequency={frequency}:duration={seconds}",
+                "-af",
+                "afade=t=in:st=0:d=0.15,afade=t=out:st=0.9:d=0.3,loudnorm=I=-16",
+                "-b:a",
+                "128k",
+                str(temporary),
+            ]
+        )
+        temporary.replace(output)
+    return output
+
+
+def ensure_fallback_audio(output: Path) -> Path:
+    if output.is_file() and output.stat().st_size > 0:
+        return output
+    return make_tone(output, seconds=15, frequency=220)
+
+
 class AudioProducer:
     def __init__(self, settings: Settings, db: Database, voice: VoiceProvider):
         self.settings = settings
@@ -107,22 +139,4 @@ class AudioProducer:
         return destination
 
     def make_jingle(self, output: Path, seconds: float = 1.2, frequency: int = 523) -> Path:
-        output.parent.mkdir(parents=True, exist_ok=True)
-        _run(
-            [
-                "ffmpeg",
-                "-y",
-                "-loglevel",
-                "error",
-                "-f",
-                "lavfi",
-                "-i",
-                f"sine=frequency={frequency}:duration={seconds}",
-                "-af",
-                "afade=t=in:st=0:d=0.15,afade=t=out:st=0.9:d=0.3,loudnorm=I=-16",
-                "-b:a",
-                "128k",
-                str(output),
-            ]
-        )
-        return output
+        return make_tone(output, seconds=seconds, frequency=frequency)

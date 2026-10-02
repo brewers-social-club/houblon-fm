@@ -15,7 +15,11 @@ services:
     ports: ["8000:8000"]
   liquidsoap:
     image: savonet/liquidsoap:v2.3.2
-    depends_on: [sidecar, icecast]
+    depends_on:
+      sidecar:
+        condition: service_healthy
+      icecast:
+        condition: service_started
     env_file: .env
     volumes: ["radio-data:/data", "./deploy/liquidsoap.liq:/radio.liq:ro"]
     command: ["liquidsoap","/radio.liq"]
@@ -26,4 +30,3 @@ services:
     volumes: ["./site/public:/usr/share/nginx/html:ro", "./deploy/nginx.conf:/etc/nginx/conf.d/default.conf:ro"]
 volumes:
   radio-data:
-

@@ -10,6 +10,7 @@ from typing import Annotated
 from fastapi import Cookie, Depends, FastAPI, Form, HTTPException, Request, Response
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 
+from .audio import ensure_fallback_audio
 from .auth import AuthService
 from .config import Settings
 from .db import Database
@@ -21,6 +22,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     settings.ensure_dirs()
     db = Database(settings.database)
     db.migrate()
+    ensure_fallback_audio(settings.data_dir / "fallback.mp3")
     auth = AuthService(db)
     scheduler = Scheduler(settings, db)
     app = FastAPI(title="Houblon FM sidecar", version="0.1.0")
