@@ -55,6 +55,35 @@ def _entry_text(entry: dict[str, Any]) -> str:
     return re.sub(r"\s+", " ", html.unescape(plain)).strip()
 
 
+def _entry_metadata(entry: dict[str, Any]) -> dict[str, Any]:
+    audio = next(
+        (
+            enclosure
+            for enclosure in entry.get("enclosures", [])
+            if isinstance(enclosure, dict) and str(enclosure.get("type", "")).startswith("audio/")
+        ),
+        {},
+    )
+    image = entry.get("image") if isinstance(entry.get("image"), dict) else {}
+    return {
+        "guid": entry.get("id"),
+        "audio_url": sanitize_url(str(audio.get("href", ""))) if audio.get("href") else None,
+        "audio_type": audio.get("type"),
+        "audio_bytes": int(audio["length"]) if str(audio.get("length", "")).isdigit() else None,
+        "duration": entry.get("itunes_duration"),
+        "season": entry.get("itunes_season") or entry.get("podcast_season"),
+        "episode": entry.get("itunes_episode") or entry.get("podcast_episode"),
+        "episode_type": entry.get("itunes_episodetype"),
+        "explicit": entry.get("itunes_explicit"),
+        "image_url": sanitize_url(str(image.get("href", ""))) if image.get("href") else None,
+        "tags": [
+            str(tag.get("term"))
+            for tag in entry.get("tags", [])
+            if isinstance(tag, dict) and tag.get("term")
+        ],
+    }
+
+
 class Collector:
     def __init__(self, settings: Settings, db: Database, log: PipelineLog | None = None):
         self.settings = settings
@@ -259,7 +288,14 @@ class Collector:
         if not feed.entries and getattr(feed, "bozo", False):
             raise ValueError(f"Flux RSS invalide: {getattr(feed, 'bozo_exception', 'inconnu')}")
         now = dt.datetime.now(dt.UTC)
-        max_age = dt.timedelta(days=int(self.settings.radio.get("item_max_age_days", 21)))
+        import_history = str(source.get("history", "recent")).casefold() == "all"
+        max_age = None
+        if not import_history:
+            max_age = dt.timedelta(
+                days=int(
+                    source.get("max_age_days", self.settings.radio.get("item_max_age_days", 21))
+                )
+            )
         inserted = skipped = 0
         skipped_reasons: Counter[str] = Counter()
         for entry in feed.entries:
@@ -278,7 +314,7 @@ class Collector:
                 skipped_reasons["future_date"] += 1
                 skipped += 1
                 continue
-            if now - published > max_age:
+            if max_age is not None and now - published > max_age:
                 skipped_reasons["too_old"] += 1
                 skipped += 1
                 continue
@@ -286,9 +322,10 @@ class Collector:
                 skipped_reasons["duplicate"] += 1
                 skipped += 1
                 continue
-            text = ""
+            feed_text = _entry_text(entry)
+            text = feed_text if source.get("prefer_feed_content", False) else ""
             page_error = None
-            if self._allowed(url):
+            if len(text) < 120 and self._allowed(url):
                 try:
                     self._wait(url, self._effective_delay(url, configured_delay))
                     page = httpx.get(
@@ -309,7 +346,7 @@ class Collector:
                 except (httpx.HTTPError, ValueError) as exc:
                     page_error = str(exc)
             if len(text) < 120:
-                text = _entry_text(entry)
+                text = feed_text
             if len(text) < 120:
                 if page_error:
                     self.db.execute(
@@ -336,7 +373,7 @@ class Collector:
                     now.isoformat(),
                     digest,
                     text,
-                    json.dumps({"language": "unknown"}),
+                    json.dumps(_entry_metadata(entry), ensure_ascii=False),
                 ),
             )
             inserted += 1

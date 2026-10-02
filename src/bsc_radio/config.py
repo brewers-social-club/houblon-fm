@@ -73,16 +73,12 @@ class Settings:
             anthropic_api_key=os.getenv("ANTHROPIC_API_KEY", ""),
             gemini_api_key=os.getenv("GEMINI_API_KEY", ""),
             elevenlabs_api_key=os.getenv("ELEVENLABS_API_KEY", ""),
-            elevenlabs_voice_id=os.getenv(
-                "ELEVENLABS_VOICE_ID", "pNInz6obpgDQGcFmaJgB"
-            ),
+            elevenlabs_voice_id=os.getenv("ELEVENLABS_VOICE_ID", "pNInz6obpgDQGcFmaJgB"),
             elevenlabs_model=os.getenv("ELEVENLABS_MODEL", "eleven_turbo_v2_5"),
             elevenlabs_style=float(os.getenv("ELEVENLABS_STYLE", "0.6")),
             codex_bin=os.getenv("CODEX_BIN", "codex"),
-            codex_light_model=os.getenv("CODEX_MODEL_LIGHT", "").strip()
-            or codex_default_model,
-            codex_write_model=os.getenv("CODEX_MODEL_WRITE", "").strip()
-            or codex_default_model,
+            codex_light_model=os.getenv("CODEX_MODEL_LIGHT", "").strip() or codex_default_model,
+            codex_write_model=os.getenv("CODEX_MODEL_WRITE", "").strip() or codex_default_model,
             codex_timeout_seconds=int(os.getenv("CODEX_TIMEOUT_SECONDS", "300")),
             write_model=os.getenv("ANTHROPIC_MODEL_WRITE", "claude-opus-4-1"),
             light_model=os.getenv("ANTHROPIC_MODEL_LIGHT", "claude-haiku-4-5"),
@@ -111,7 +107,16 @@ class Settings:
 
     @property
     def sources(self) -> list[dict[str, Any]]:
-        return _yaml(self.config_dir / "sources.yaml").get("sources", [])
+        configured = list(_yaml(self.config_dir / "sources.yaml").get("sources", []))
+        fragments = self.config_dir / "sources.d"
+        if fragments.is_dir():
+            for path in sorted(fragments.glob("*.yaml")):
+                configured.extend(_yaml(path).get("sources", []))
+        merged: dict[str, dict[str, Any]] = {}
+        for source in configured:
+            identifier = str(source["id"])
+            merged[identifier] = {**merged.get(identifier, {}), **source}
+        return list(merged.values())
 
     @property
     def lexicon(self) -> dict[str, str]:

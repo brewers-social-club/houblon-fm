@@ -107,6 +107,12 @@ rotatif dans `data/logs/radio.jsonl` (5 Mio par fichier, avec 5 archives). `RADI
 notamment `DEBUG`, `INFO`, `WARNING` ou `ERROR`. Les erreurs complètes restent dans le fichier,
 tandis que les clés, jetons, mots de passe et paramètres sensibles sont masqués.
 
+Les sources peuvent aussi être rangées dans `config/sources.d/*.yaml`. Deux options sont utiles
+pour les podcasts : `history: all` désactive la limite d'âge pour cette source, et
+`prefer_feed_content: true` exploite directement la description RSS détaillée sans ouvrir la page
+de chaque épisode. Les liens audio, durées, saisons, numéros, images et catégories disponibles
+dans le flux sont conservés dans `item.metadata_json`, sans télécharger les MP3.
+
 ## Architecture
 
 ```text

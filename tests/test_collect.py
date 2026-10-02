@@ -1,4 +1,5 @@
 import datetime as dt
+import json
 from types import SimpleNamespace
 
 import feedparser
@@ -171,6 +172,82 @@ def test_collect_reports_aggregated_skip_reasons(tmp_path, monkeypatch):
         "too_old": 1,
         "missing_date": 1,
         "invalid_url": 1,
+    }
+
+
+def test_podcast_can_import_full_history_from_feed_content(tmp_path, monkeypatch):
+    cfg = settings(tmp_path)
+    db = Database(cfg.database)
+    db.migrate()
+    source = {
+        "id": "podcast",
+        "name": "Podcast",
+        "kind": "rss",
+        "url": "https://feed.example.test/show",
+        "station": "degustation",
+        "enabled": True,
+        "history": "all",
+        "prefer_feed_content": True,
+        "min_interval_seconds": 0,
+    }
+    db.execute(
+        "INSERT INTO source(id,name,kind,url,station) VALUES(?,?,?,?,?)",
+        (source["id"], source["name"], source["kind"], source["url"], source["station"]),
+    )
+    parsed = SimpleNamespace(
+        entries=[
+            {
+                "id": "episode-guid",
+                "link": "https://podcast.example.test/episode",
+                "published": "Mon, 01 Jan 2018 12:00:00 +0000",
+                "title": "Ancien épisode",
+                "author": "La radio",
+                "summary": "Description détaillée de l'épisode. " * 10,
+                "itunes_duration": "1:02:03",
+                "itunes_season": "2",
+                "itunes_episode": "7",
+                "enclosures": [
+                    {
+                        "href": "https://audio.example.test/episode.mp3?t=cache",
+                        "type": "audio/mpeg",
+                        "length": "123456",
+                    }
+                ],
+                "image": {"href": "https://image.example.test/cover.jpg?t=cache"},
+                "tags": [{"term": "bière"}, {"term": "cinéma"}],
+            }
+        ],
+        bozo=False,
+    )
+    calls = []
+
+    def fake_get(url, **_kwargs):
+        calls.append(url)
+        return FakeResponse(content=b"rss", url=url)
+
+    monkeypatch.setattr(feedparser, "parse", lambda _content: parsed)
+    monkeypatch.setattr(httpx, "get", fake_get)
+    collector = Collector(cfg, db)
+    monkeypatch.setattr(collector, "_allowed", lambda _url: True)
+    monkeypatch.setattr(collector, "_effective_delay", lambda _url, delay: delay)
+
+    assert collector.collect_source(source) == (1, 0)
+    assert calls == [source["url"]]
+    row = db.one("SELECT raw_text,metadata_json FROM item")
+    metadata = json.loads(row["metadata_json"])
+    assert "Description détaillée" in row["raw_text"]
+    assert metadata == {
+        "guid": "episode-guid",
+        "audio_url": "https://audio.example.test/episode.mp3",
+        "audio_type": "audio/mpeg",
+        "audio_bytes": 123456,
+        "duration": "1:02:03",
+        "season": "2",
+        "episode": "7",
+        "episode_type": None,
+        "explicit": None,
+        "image_url": "https://image.example.test/cover.jpg",
+        "tags": ["bière", "cinéma"],
     }
 
 

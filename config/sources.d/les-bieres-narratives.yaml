@@ -1,0 +1,10 @@
+sources:
+  - id: les-bieres-narratives
+    name: Les Bières Narratives
+    kind: rss
+    url: https://feed.ausha.co/yJXvRIKgRrO2
+    enabled: true
+    station: degustation
+    min_interval_seconds: 5
+    history: all
+    prefer_feed_content: true
