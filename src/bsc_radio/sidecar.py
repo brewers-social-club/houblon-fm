@@ -12,6 +12,7 @@ from typing import Annotated
 from fastapi import Cookie, Depends, FastAPI, Form, HTTPException, Request, Response
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 
+from .antenna import AntennaClock
 from .audio import ensure_fallback_audio
 from .auth import AuthService
 from .config import Settings
@@ -27,6 +28,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     ensure_fallback_audio(settings.data_dir / "fallback.mp3")
     auth = AuthService(db)
     scheduler = Scheduler(settings, db)
+    antenna = AntennaClock(settings, db, scheduler)
     app = FastAPI(title="Houblon FM sidecar", version="0.1.0")
 
     def admin_token(login: str, expires_at: int) -> str:
@@ -72,7 +74,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/next", response_class=PlainTextResponse)
     def next_track():
-        track = scheduler.next()
+        track = antenna.next()
         if not track:
             fallback = settings.data_dir / "fallback.mp3"
             if not fallback.exists():
@@ -89,11 +91,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             if not fallback.exists():
                 raise HTTPException(503, "Audio programmé introuvable")
             return str(fallback)
-        scheduler.mark_started(track)
+        antenna.mark_started(track)
         return str(playable_path)
 
     @app.get("/api/now")
     def now_playing():
+        current = antenna.now()
+        if current:
+            return current
         row = db.one(
             """SELECT e.title,e.format,e.slug,a.started_at,au.duration_seconds FROM airing a
             JOIN episode e ON e.id=a.episode_id JOIN audio au ON au.id=a.audio_id ORDER BY a.started_at DESC LIMIT 1"""

@@ -115,7 +115,12 @@ class AudioProducer:
                         else "",
                     ),
                     part,
-                    f"Français naturel, vivant sans excès. Personnage fictif: {character['description']}",
+                    character.get("performance", {})
+                    if self.settings.tts_provider == "elevenlabs"
+                    else (
+                        "Français naturel, vivant sans excès. "
+                        f"Personnage fictif: {character['description']}"
+                    ),
                 )
                 parts.append(part)
             concat = temp / "concat.txt"

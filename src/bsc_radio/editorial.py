@@ -130,6 +130,11 @@ class EditorialPipeline:
             "health_notice": radio["health_notice"],
             "characters": self.settings.characters,
             "law": "Information objective. Aucune incitation, réussite, fête ou ciblage de mineurs.",
+            "antenna": {
+                "station": radio["name"],
+                "tone": "radio vivante, chaleureuse, complice et légèrement impertinente",
+                "dedication": "remercier ponctuellement les auditeurs et les métiers du brassage",
+            },
         }
         script = canonicalize_script(
             self.provider.write(fmt, facts, context), self.settings.characters

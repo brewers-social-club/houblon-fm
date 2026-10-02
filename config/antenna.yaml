@@ -1,0 +1,114 @@
+enabled: true
+sound_effect_model: eleven_text_to_sound_v2
+music_model: music_v1
+
+# Un tour d'horloge. Les catégories absentes du disque sont ignorées sans couper le direct.
+clock:
+  - station_ids
+  - episode
+  - stingers
+  - music
+  - jokes
+  - episode
+  - promos
+  - music
+  - dedications
+  - episode
+
+sound_effects:
+  - id: cuivre-et-bulles
+    category: stingers
+    prompt: >-
+      Three-second French craft radio transition, bright brass hit, sparkling bubbles,
+      warm analog broadcast sound, energetic but elegant, no voice, no melody reference.
+    duration_seconds: 3
+  - id: houblon-express
+    category: stingers
+    prompt: >-
+      Fast two-second radio swoosh made of fizzy bubbles, a bottle-cap metallic click
+      and a clean bass impact, professional broadcast production, no voice.
+    duration_seconds: 2
+
+spoken:
+  - id: identite-principale
+    category: station_ids
+    character: presenter
+    text: "Houblon FM. La radio brassicole qui fermente mieux que tes idées du lundi matin."
+    bed_prompt: >-
+      Six-second premium radio ident bed, warm brass, subtle bubbling texture,
+      modern French public radio polish, space in the center for a female voice, no voice.
+    bed_duration_seconds: 6
+  - id: identite-courte
+    category: station_ids
+    character: presenter
+    text: "Tu écoutes Houblon FM. Des faits, du malt, et zéro blabla éventé."
+    bed_prompt: >-
+      Five-second upbeat radio ident, crisp drums, tiny brass flourish and fizzy texture,
+      clean ending, room for voice-over, no voice.
+    bed_duration_seconds: 5
+  - id: blague-levure
+    category: jokes
+    character: presenter
+    text: >-
+      La levure travaille sans pause, sans syndicat et sans réunion Teams. Franchement,
+      c'est le meilleur service de la station.
+    bed_prompt: >-
+      Seven-second playful radio comedy bed, pizzicato bass and a tiny rimshot,
+      understated, warm, no voice.
+    bed_duration_seconds: 7
+  - id: blague-temperature
+    category: jokes
+    character: consultant
+    text: >-
+      Rappel technique : si ta fermentation s'emballe, ce n'est pas du caractère.
+      C'est un thermostat qui a démissionné.
+    bed_prompt: >-
+      Eight-second dry comedy radio bed, muted upright bass, brushed snare,
+      restrained punchline ending, no voice.
+    bed_duration_seconds: 8
+  - id: promo-sources
+    category: promos
+    character: storyteller
+    text: >-
+      Ici, chaque information garde sa source. Les rumeurs restent au comptoir,
+      et les liens sont disponibles avec chaque émission.
+    bed_prompt: >-
+      Ten-second trustworthy public-radio promo bed, warm marimba, soft analog pulse,
+      optimistic but factual, no voice.
+    bed_duration_seconds: 10
+  - id: promo-participation
+    category: promos
+    character: presenter
+    text: >-
+      Une question, une correction ou une idée d'émission ? Laisse ton message sur Houblon FM.
+      Oui, même toi au fond, je t'ai vu lever la main.
+    bed_prompt: >-
+      Eleven-second friendly community radio promo bed, acoustic percussion and warm keys,
+      light humorous finish, no voice.
+    bed_duration_seconds: 11
+  - id: dedicace-brasseurs
+    category: dedications
+    character: presenter
+    text: >-
+      Dédicace aux brasseuses, aux brasseurs, et à celles et ceux qui nettoient encore
+      une cuve pendant que les autres expliquent la recette. Cette transition est pour vous.
+    bed_prompt: >-
+      Twelve-second heartfelt radio dedication bed, gentle electric piano and warm brass pad,
+      sincere, not sentimental, no voice.
+    bed_duration_seconds: 12
+
+music:
+  - id: cuivre-nocturne
+    title: Cuivre nocturne
+    prompt: >-
+      Original instrumental French late-night radio groove, 92 BPM, warm electric piano,
+      muted brass, round bass, subtle vinyl texture, sophisticated and relaxed,
+      no vocals, no references to existing artists or songs, clean radio ending.
+    duration_seconds: 75
+  - id: houblon-mecanique
+    title: Houblon mécanique
+    prompt: >-
+      Original instrumental electro-funk radio track, 108 BPM, playful analog synths,
+      tight drums, metallic percussion suggesting brewing machinery, upbeat but not aggressive,
+      no vocals, no references to existing artists or songs, clean radio ending.
+    duration_seconds: 75

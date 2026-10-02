@@ -102,6 +102,10 @@ class Settings:
         return _yaml(self.config_dir / "schedule.yaml")
 
     @property
+    def antenna(self) -> dict[str, Any]:
+        return _yaml(self.config_dir / "antenna.yaml")
+
+    @property
     def characters(self) -> dict[str, Any]:
         return _yaml(self.config_dir / "characters.yaml")
 

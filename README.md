@@ -92,6 +92,8 @@ radio import-scripts emissions
 radio voice-queue --max 3
 radio voices
 radio say "Une India Pale Ale houblonnée" --character presenter
+radio imaging
+radio antenna-status
 radio logs --lines 100
 radio runs --limit 20
 radio publish
@@ -117,6 +119,21 @@ chaque épisode. `min_content_chars` adapte le seuil aux formats courts, tandis 
 `refresh_existing: true` actualise les épisodes modifiés sans les dupliquer. Les liens audio,
 durées, saisons, numéros, images et catégories disponibles dans le flux sont conservés dans
 `item.metadata_json`, sans télécharger les MP3.
+
+## Habillage et direct vivant
+
+`config/antenna.yaml` décrit une horloge d'antenne et les éléments générés par ElevenLabs :
+jingles/stingers via Sound Effects, idents et interventions multivoix, promos, dédicaces et
+musiques instrumentales originales via Music. La commande `radio imaging` génère uniquement les
+éléments absents dans `data/antenna/`; `radio imaging --force` les régénère volontairement.
+`radio antenna-status` affiche ce qui est réellement prêt à diffuser.
+
+Le sidecar déroule automatiquement `clock` et saute sans erreur les catégories encore vides.
+Chaque personnage possède ses propres réglages ElevenLabs (`stability`, `similarity_boost`,
+`style`, `speed`) dans `config/characters.yaml`. Les morceaux sont demandés sans voix, sans
+référence à un artiste ou à une chanson existante et avec signature C2PA. Les droits commerciaux
+d'Eleven Music dépendent néanmoins de l'abonnement ElevenLabs utilisé : ils doivent être vérifiés
+avant une diffusion commerciale.
 
 ## Architecture
 

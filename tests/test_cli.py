@@ -50,6 +50,8 @@ def test_commands_are_visible_in_help():
     assert "logs" in result.stdout
     assert "runs" in result.stdout
     assert "delete" in result.stdout
+    assert "imaging" in result.stdout
+    assert "antenna-status" in result.stdout
 
 
 def test_say_resolves_display_name_and_provider_voice(tmp_path: Path, monkeypatch):

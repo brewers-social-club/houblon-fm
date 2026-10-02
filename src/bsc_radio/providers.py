@@ -30,7 +30,9 @@ class EditorialProvider(Protocol):
 
 
 class VoiceProvider(Protocol):
-    def synthesize(self, text: str, voice: str, output: Path, style: str = "") -> None: ...
+    def synthesize(
+        self, text: str, voice: str, output: Path, style: str | dict[str, Any] = ""
+    ) -> None: ...
 
 
 @dataclass
@@ -256,11 +258,22 @@ class ElevenLabsVoiceProvider:
         self.model = settings.elevenlabs_model
         self.style = settings.elevenlabs_style
 
-    def synthesize(self, text: str, voice: str, output: Path, style: str = "") -> None:
-        del style
+    def synthesize(
+        self, text: str, voice: str, output: Path, style: str | dict[str, Any] = ""
+    ) -> None:
         voice_id = voice.strip() or self.voice_id.strip()
         if not re.fullmatch(r"[A-Za-z0-9_-]+", voice_id):
             raise ValueError("Identifiant de voix ElevenLabs invalide")
+        voice_settings: dict[str, float | bool] = {
+            "stability": 0.5,
+            "similarity_boost": 0.75,
+            "style": self.style,
+            "speed": 1.0,
+            "use_speaker_boost": True,
+        }
+        if isinstance(style, dict):
+            allowed = {"stability", "similarity_boost", "style", "speed", "use_speaker_boost"}
+            voice_settings.update({key: value for key, value in style.items() if key in allowed})
         response = httpx.post(
             f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}",
             params={"output_format": "mp3_44100_128"},
@@ -268,12 +281,7 @@ class ElevenLabsVoiceProvider:
             json={
                 "text": text,
                 "model_id": self.model,
-                "voice_settings": {
-                    "stability": 0.5,
-                    "similarity_boost": 0.75,
-                    "style": self.style,
-                    "use_speaker_boost": True,
-                },
+                "voice_settings": voice_settings,
             },
             timeout=120,
         )

@@ -13,6 +13,7 @@ from .config import Settings
 from .db import Database
 from .editorial import EditorialPipeline
 from .episodes import delete_episode
+from .imaging import ImagingProducer
 from .observability import PipelineLog, redact, tail_log
 from .providers import editorial_provider, voice_provider
 from .publish import Publisher
@@ -350,6 +351,45 @@ def voices():
             settings.elevenlabs_voice_id if settings.tts_provider == "elevenlabs" else "",
         )
         typer.echo(f"{role}: {profile.get('name', role)} -> {voice or '(non configurée)'}")
+
+
+@app.command()
+def imaging(force: bool = typer.Option(False, "--force", help="Régénérer les sons existants")):
+    """Génère jingles, liners, pubs, dédicaces et musiques avec ElevenLabs."""
+    settings = Settings.load()
+    settings.ensure_dirs()
+    db = Database(settings.database)
+    db.migrate()
+    log = PipelineLog(settings, db, "imaging")
+    try:
+        with log.stage("imaging.generate", force=force):
+            result = ImagingProducer(settings).generate(force=force)
+    except Exception as exc:
+        log.fail(exc)
+        typer.echo(f"Échec de l'habillage : {_safe_failure_message(exc)}", err=True)
+        raise typer.Exit(1) from exc
+    log.finish(
+        "succeeded",
+        summary={"generated": len(result["generated"]), "skipped": len(result["skipped"])},
+    )
+    typer.echo(
+        f"Habillage prêt : {len(result['generated'])} généré(s), "
+        f"{len(result['skipped'])} déjà présent(s)"
+    )
+
+
+@app.command("antenna-status")
+def antenna_status():
+    """Affiche les éléments disponibles pour l'horloge d'antenne."""
+    settings = Settings.load()
+    root = settings.data_dir / "antenna"
+    seen: set[str] = set()
+    for category in settings.antenna.get("clock", []):
+        if category == "episode" or category in seen:
+            continue
+        seen.add(str(category))
+        count = len(list((root / str(category)).glob("*.mp3")))
+        typer.echo(f"{category}: {count}")
 
 
 @app.command()
