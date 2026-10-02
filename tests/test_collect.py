@@ -114,9 +114,64 @@ def test_collect_all_records_successes_and_failures(tmp_path, monkeypatch):
     assert result["items"] == 2
     assert result["failed_sources"] == ["broken"]
     assert db.one("SELECT COUNT(*) count FROM source_fetch")["count"] == 2
-    assert db.one(
-        "SELECT error FROM source_fetch WHERE source_id='broken' ORDER BY id DESC LIMIT 1"
-    )["error"] == "flux cassé"
+    assert (
+        db.one("SELECT error FROM source_fetch WHERE source_id='broken' ORDER BY id DESC LIMIT 1")[
+            "error"
+        ]
+        == "flux cassé"
+    )
+
+
+def test_collect_reports_aggregated_skip_reasons(tmp_path, monkeypatch):
+    cfg = settings(tmp_path)
+    db = Database(cfg.database)
+    db.migrate()
+    source = {
+        "id": "source",
+        "name": "Source",
+        "kind": "rss",
+        "url": "https://source.test/feed",
+        "station": "brassage",
+        "enabled": True,
+        "min_interval_seconds": 0,
+    }
+    db.execute(
+        "INSERT INTO source(id,name,kind,url,station) VALUES(?,?,?,?,?)",
+        (source["id"], source["name"], source["kind"], source["url"], source["station"]),
+    )
+    recent = dt.datetime.now(dt.UTC).strftime("%a, %d %b %Y %H:%M:%S %z")
+    old = (dt.datetime.now(dt.UTC) - dt.timedelta(days=90)).strftime("%a, %d %b %Y %H:%M:%S %z")
+    db.execute(
+        """INSERT INTO item(source_id,url,title,published_at,collected_at,content_hash)
+        VALUES(?,?,?,?,?,?)""",
+        (source["id"], "https://source.test/known", "Connu", recent, recent, "known"),
+    )
+    parsed = SimpleNamespace(
+        entries=[
+            {"link": "https://source.test/known", "published": recent},
+            {"link": "https://source.test/old", "published": old},
+            {"link": "https://source.test/no-date"},
+            {"link": "not-a-url", "published": recent},
+        ],
+        bozo=False,
+    )
+    monkeypatch.setattr(feedparser, "parse", lambda _content: parsed)
+    monkeypatch.setattr(
+        httpx,
+        "get",
+        lambda url, **_kwargs: FakeResponse(content=b"rss", url=url),
+    )
+    collector = Collector(cfg, db)
+    monkeypatch.setattr(collector, "_allowed", lambda _url: True)
+    monkeypatch.setattr(collector, "_effective_delay", lambda _url, delay: delay)
+
+    assert collector.collect_source(source) == (0, 4)
+    assert collector._last_skip_reasons == {
+        "duplicate": 1,
+        "too_old": 1,
+        "missing_date": 1,
+        "invalid_url": 1,
+    }
 
 
 def test_robots_uses_radio_user_agent_and_parses_rules(tmp_path, monkeypatch):

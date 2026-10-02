@@ -92,6 +92,8 @@ radio import-scripts emissions
 radio voice-queue --max 3
 radio voices
 radio say "Une India Pale Ale houblonnée" --character presenter
+radio logs --lines 100
+radio runs --limit 20
 radio publish
 radio withdraw 42
 radio feedback
@@ -99,6 +101,11 @@ radio airings
 radio stats
 radio sidecar
 ```
+
+`radio collect` et `radio run` affichent chaque étape en direct et écrivent un journal JSONL
+rotatif dans `data/logs/radio.jsonl` (5 Mio par fichier, avec 5 archives). `RADIO_LOG_LEVEL` accepte
+notamment `DEBUG`, `INFO`, `WARNING` ou `ERROR`. Les erreurs complètes restent dans le fichier,
+tandis que les clés, jetons, mots de passe et paramètres sensibles sont masqués.
 
 ## Architecture
 

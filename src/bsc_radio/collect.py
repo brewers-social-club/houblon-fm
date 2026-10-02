@@ -9,12 +9,14 @@ import re
 import time
 import urllib.parse
 import urllib.robotparser
+from collections import Counter
 from typing import Any
 
 import httpx
 
 from .config import Settings
 from .db import Database
+from .observability import PipelineLog, redact, sanitize_url
 
 
 def _date(value: str | None) -> dt.datetime | None:
@@ -45,9 +47,7 @@ def _entry_date(entry: dict[str, Any]) -> dt.datetime | None:
 
 def _entry_text(entry: dict[str, Any]) -> str:
     fragments = [
-        item.get("value", "")
-        for item in entry.get("content", [])
-        if isinstance(item, dict)
+        item.get("value", "") for item in entry.get("content", []) if isinstance(item, dict)
     ]
     fragments.extend([entry.get("summary", ""), entry.get("description", "")])
     plain = " ".join(fragment for fragment in fragments if fragment)
@@ -56,9 +56,11 @@ def _entry_text(entry: dict[str, Any]) -> str:
 
 
 class Collector:
-    def __init__(self, settings: Settings, db: Database):
+    def __init__(self, settings: Settings, db: Database, log: PipelineLog | None = None):
         self.settings = settings
         self.db = db
+        self.log = log
+        self._last_skip_reasons: dict[str, int] = {}
         self._last_domain_fetch: dict[str, float] = {}
         self._robots_cache: dict[
             str, tuple[urllib.robotparser.RobotFileParser | None, bool, float]
@@ -145,6 +147,7 @@ class Collector:
             "sources": 0,
             "items": 0,
             "skipped": 0,
+            "skipped_reasons": {},
             "failed_sources": [],
             "details": [],
         }
@@ -152,15 +155,28 @@ class Collector:
             if not source.get("enabled", True):
                 continue
             result["sources"] += 1
+            if self.log:
+                self.log.info(
+                    "collect.source.start",
+                    "Collecte de la source",
+                    source=source["id"],
+                    kind=source["kind"],
+                    url=sanitize_url(source["url"]),
+                )
             started_at = dt.datetime.now(dt.UTC).isoformat()
             fetch_id = self.db.execute(
                 "INSERT INTO source_fetch(source_id,started_at) VALUES(?,?)",
                 (source["id"], started_at),
             )
             try:
+                self._last_skip_reasons = {}
                 count, skipped = self.collect_source(source)
+                skipped_reasons = self._last_skip_reasons
                 result["items"] += count
                 result["skipped"] += skipped
+                aggregate_reasons = Counter(result["skipped_reasons"])
+                aggregate_reasons.update(skipped_reasons)
+                result["skipped_reasons"] = dict(aggregate_reasons)
                 finished_at = dt.datetime.now(dt.UTC).isoformat()
                 self.db.execute(
                     """UPDATE source_fetch
@@ -177,10 +193,20 @@ class Collector:
                         "status": "ok",
                         "items": count,
                         "skipped": skipped,
+                        "skipped_reasons": skipped_reasons,
                     }
                 )
+                if self.log:
+                    self.log.info(
+                        "collect.source.done",
+                        "Source collectée",
+                        source=source["id"],
+                        items=count,
+                        skipped=skipped,
+                        skipped_reasons=skipped_reasons,
+                    )
             except Exception as exc:
-                error = str(exc)
+                error = str(redact(str(exc)))
                 self.db.execute(
                     """UPDATE source_fetch
                     SET finished_at=?,error=? WHERE id=?""",
@@ -194,10 +220,22 @@ class Collector:
                 result["details"].append(
                     {"source": source["id"], "status": "error", "error": error}
                 )
+                if self.log:
+                    self.log.exception(
+                        "collect.source.error",
+                        "Échec de la source",
+                        source=source["id"],
+                        error=error,
+                    )
         self.purge_raw_text()
         return result
 
     def collect_source(self, source: dict[str, Any]) -> tuple[int, int]:
+        inserted, skipped, reasons = self._collect_source_detailed(source)
+        self._last_skip_reasons = reasons
+        return inserted, skipped
+
+    def _collect_source_detailed(self, source: dict[str, Any]) -> tuple[int, int, dict[str, int]]:
         if source["kind"] != "rss":
             raise NotImplementedError(f"Collecteur {source['kind']} à configurer")
         if not self._allowed(source["url"]):
@@ -223,21 +261,29 @@ class Collector:
         now = dt.datetime.now(dt.UTC)
         max_age = dt.timedelta(days=int(self.settings.radio.get("item_max_age_days", 21)))
         inserted = skipped = 0
+        skipped_reasons: Counter[str] = Counter()
         for entry in feed.entries:
             url = entry.get("link")
             published = _entry_date(entry)
             parsed_url = urllib.parse.urlparse(url or "")
-            if (
-                not url
-                or parsed_url.scheme not in {"http", "https"}
-                or not parsed_url.netloc
-                or not published
-                or published > now + dt.timedelta(days=1)
-                or now - published > max_age
-            ):
+            if not url or parsed_url.scheme not in {"http", "https"} or not parsed_url.netloc:
+                skipped_reasons["invalid_url"] += 1
+                skipped += 1
+                continue
+            if not published:
+                skipped_reasons["missing_date"] += 1
+                skipped += 1
+                continue
+            if published > now + dt.timedelta(days=1):
+                skipped_reasons["future_date"] += 1
+                skipped += 1
+                continue
+            if now - published > max_age:
+                skipped_reasons["too_old"] += 1
                 skipped += 1
                 continue
             if self.db.one("SELECT id FROM item WHERE url=?", (url,)):
+                skipped_reasons["duplicate"] += 1
                 skipped += 1
                 continue
             text = ""
@@ -271,9 +317,10 @@ class Collector:
                         (
                             "collect_item",
                             page_error,
-                            json.dumps({"source": source["id"], "url": url}),
+                            json.dumps({"source": source["id"], "url": sanitize_url(url)}),
                         ),
                     )
+                skipped_reasons["short_content"] += 1
                 skipped += 1
                 continue
             digest = hashlib.sha256(text.encode()).hexdigest()
@@ -293,7 +340,7 @@ class Collector:
                 ),
             )
             inserted += 1
-        return inserted, skipped
+        return inserted, skipped, dict(skipped_reasons)
 
     def purge_raw_text(self) -> int:
         days = int(self.settings.radio.get("raw_text_retention_days", 30))

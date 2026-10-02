@@ -12,6 +12,7 @@ from .collect import Collector
 from .config import Settings
 from .db import Database
 from .editorial import EditorialPipeline
+from .observability import PipelineLog, redact, tail_log
 from .providers import editorial_provider, voice_provider
 from .publish import Publisher
 from .sidecar import create_app
@@ -25,7 +26,7 @@ def _safe_failure_message(exc: Exception) -> str:
         "[secret redacted]",
         str(exc),
     )
-    return message.strip()[-1800:] or exc.__class__.__name__
+    return str(redact(message)).strip()[-1800:] or exc.__class__.__name__
 
 
 def _mark_episode_failed(db: Database, episode_id: int, stage: str, exc: Exception) -> str:
@@ -46,7 +47,9 @@ def _mark_episode_failed(db: Database, episode_id: int, stage: str, exc: Excepti
     return message
 
 
-def _finish_episode(settings, db, editorial, audio, episode_id: int) -> dict[str, object]:
+def _finish_episode(
+    settings, db, editorial, audio, episode_id: int, log: PipelineLog | None = None
+) -> dict[str, object]:
     episode = db.one("SELECT * FROM episode WHERE id=?", (episode_id,))
     if not episode:
         raise ValueError(f"Épisode #{episode_id} introuvable")
@@ -59,19 +62,31 @@ def _finish_episode(settings, db, editorial, audio, episode_id: int) -> dict[str
     stage = "verify"
     try:
         if not audio_row and episode["status"] not in {"verified", "audio"}:
-            verdict = editorial.verify_episode(episode_id)
+            if log:
+                with log.stage("run.verify", episode_id=episode_id):
+                    verdict = editorial.verify_episode(episode_id)
+            else:
+                verdict = editorial.verify_episode(episode_id)
             if verdict["status"] == "rejected":
                 return {"status": "rejected", "episode_id": episode_id}
         if not audio_row:
             stage = "audio"
-            audio.produce(episode_id)
+            if log:
+                with log.stage("run.audio", episode_id=episode_id):
+                    audio.produce(episode_id)
+            else:
+                audio.produce(episode_id)
         elif episode["status"] != "audio":
             db.execute(
                 "UPDATE episode SET status='audio',rejection_reason=NULL WHERE id=?",
                 (episode_id,),
             )
         stage = "publish"
-        Publisher(settings, db).publish()
+        if log:
+            with log.stage("run.publish", episode_id=episode_id):
+                Publisher(settings, db).publish()
+        else:
+            Publisher(settings, db).publish()
         return {"status": "published", "episode_id": episode_id, "already_done": False}
     except Exception as exc:
         _mark_episode_failed(db, episode_id, stage, exc)
@@ -101,8 +116,20 @@ def init():
 
 @app.command()
 def collect():
-    settings, db, _, _ = services()
-    typer.echo(json.dumps(Collector(settings, db).collect_all(), ensure_ascii=False))
+    settings = Settings.load()
+    settings.ensure_dirs()
+    db = Database(settings.database)
+    db.migrate()
+    log = PipelineLog(settings, db, "collect")
+    try:
+        result = Collector(settings, db, log).collect_all()
+    except Exception as exc:
+        log.fail(exc)
+        typer.echo(f"Échec de la collecte : {_safe_failure_message(exc)}", err=True)
+        raise typer.Exit(1) from exc
+    status = "partial" if result["failed_sources"] else "succeeded"
+    log.finish(status, summary=result)
+    typer.echo(json.dumps(result, ensure_ascii=False))
 
 
 @app.command()
@@ -126,22 +153,82 @@ def topics(hours: int = 48):
 
 @app.command()
 def run(fmt: str = "journal", hours: int = 48, skip_collect: bool = False):
-    settings, db, editorial, audio = services()
+    settings = Settings.load()
+    settings.ensure_dirs()
+    db = Database(settings.database)
+    db.migrate()
+    log = PipelineLog(settings, db, "run")
+    episode_id = None
     try:
+        with log.stage("run.initialize", format=fmt, hours=hours):
+            editorial = EditorialPipeline(settings, db, editorial_provider(settings))
+            audio = AudioProducer(settings, db, voice_provider(settings))
         if not skip_collect:
-            Collector(settings, db).collect_all()
-        editorial.extract_pending()
-        editorial.build_topics()
-        episode_id = editorial.write_episode(fmt, hours)
-        result = _finish_episode(settings, db, editorial, audio, episode_id)
+            with log.stage("run.collect"):
+                collection = Collector(settings, db, log).collect_all()
+                log.info(
+                    "run.collect.summary",
+                    "Collecte terminée",
+                    items=collection["items"],
+                    failed_sources=collection["failed_sources"],
+                )
+                if collection["failed_sources"]:
+                    log.warning(
+                        "run.collect.partial",
+                        "Collecte partielle",
+                        failed_sources=collection["failed_sources"],
+                    )
+        with log.stage("run.facts"):
+            extracted = editorial.extract_pending()
+            log.info("run.facts.summary", "Faits extraits", articles=extracted)
+        with log.stage("run.topics"):
+            topics_count = editorial.build_topics()
+            log.info("run.topics.summary", "Sujets créés", topics=topics_count)
+        with log.stage("run.write", format=fmt, hours=hours):
+            episode_id = editorial.write_episode(fmt, hours)
+            log.info("run.write.created", "Épisode créé", episode_id=episode_id)
+        result = _finish_episode(settings, db, editorial, audio, episode_id, log)
     except Exception as exc:
+        log.fail(exc, episode_id=episode_id)
         typer.echo(f"Échec du pipeline : {_safe_failure_message(exc)}", err=True)
         raise typer.Exit(1) from exc
     if result["status"] == "rejected":
+        log.finish("rejected", episode_id=episode_id)
         typer.echo(f"Épisode #{episode_id} rejeté par la vérification", err=True)
         raise typer.Exit(2)
     row = db.one("SELECT path FROM audio WHERE episode_id=?", (episode_id,))
+    log.finish("succeeded", episode_id=episode_id, audio_path=row["path"])
     typer.echo(f"Épisode #{episode_id}: {row['path']}")
+
+
+@app.command()
+def logs(lines: int = typer.Option(100, "--lines", min=1, max=5000)):
+    """Affiche les dernières lignes du journal structuré."""
+    settings = Settings.load()
+    path = settings.data_dir / "logs" / "radio.jsonl"
+    entries = tail_log(path, lines)
+    if not entries:
+        typer.echo(f"Aucun journal disponible dans {path}")
+        return
+    for entry in entries:
+        typer.echo(entry.rstrip())
+
+
+@app.command()
+def runs(limit: int = typer.Option(20, "--limit", min=1, max=500)):
+    """Liste les dernières exécutions de collecte et de génération."""
+    settings = Settings.load()
+    db = Database(settings.database)
+    db.migrate()
+    for row in db.all(
+        """SELECT id,command,status,started_at,finished_at,detail_json
+        FROM pipeline_run ORDER BY id DESC LIMIT ?""",
+        (limit,),
+    ):
+        typer.echo(
+            f"#{row['id']} {row['command']} [{row['status']}] "
+            f"{row['started_at']} -> {row['finished_at'] or 'en cours'}"
+        )
 
 
 @app.command()

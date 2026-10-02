@@ -47,6 +47,8 @@ def test_commands_are_visible_in_help():
     assert "episodes" in result.stdout
     assert "resume" in result.stdout
     assert "voices" in result.stdout
+    assert "logs" in result.stdout
+    assert "runs" in result.stdout
 
 
 def test_say_resolves_display_name_and_provider_voice(tmp_path: Path, monkeypatch):
