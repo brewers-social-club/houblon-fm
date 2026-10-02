@@ -70,7 +70,6 @@ name = "bsc-radio"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
-    { name = "anthropic" },
     { name = "fastapi" },
     { name = "feedparser" },
     { name = "google-genai" },
@@ -83,6 +82,9 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
+anthropic = [
+    { name = "anthropic" },
+]
 dev = [
     { name = "pytest" },
     { name = "pytest-cov" },
@@ -91,7 +93,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "anthropic", specifier = ">=0.69,<1" },
+    { name = "anthropic", marker = "extra == 'anthropic'", specifier = ">=0.69,<1" },
     { name = "fastapi", specifier = ">=0.118,<1" },
     { name = "feedparser", specifier = ">=6.0.12,<7" },
     { name = "google-genai", specifier = ">=1.46,<2" },
@@ -105,7 +107,7 @@ requires-dist = [
     { name = "typer", specifier = ">=0.16,<1" },
     { name = "uvicorn", specifier = ">=0.35,<1" },
 ]
-provides-extras = ["dev"]
+provides-extras = ["anthropic", "dev"]
 
 [[package]]
 name = "certifi"

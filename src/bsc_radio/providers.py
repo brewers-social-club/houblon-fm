@@ -216,9 +216,15 @@ class GeminiVoiceProvider:
 
 
 def editorial_provider(settings: Settings) -> EditorialProvider:
+    if settings.ai_provider == "codex":
+        from .codex_provider import CodexEditorialProvider
+
+        return CodexEditorialProvider(settings)
     if settings.ai_provider == "anthropic":
         return AnthropicEditorialProvider(settings)
-    return MockEditorialProvider()
+    if settings.ai_provider == "mock":
+        return MockEditorialProvider()
+    raise RuntimeError(f"Provider éditorial inconnu : {settings.ai_provider}")
 
 
 def voice_provider(settings: Settings) -> VoiceProvider:

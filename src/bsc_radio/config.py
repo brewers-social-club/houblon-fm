@@ -30,6 +30,9 @@ class Settings:
     session_secret: str
     anthropic_api_key: str
     gemini_api_key: str
+    codex_bin: str
+    codex_model: str
+    codex_timeout_seconds: int
     write_model: str
     light_model: str
     tts_model: str
@@ -58,6 +61,9 @@ class Settings:
             session_secret=os.getenv("RADIO_SESSION_SECRET", "development-only"),
             anthropic_api_key=os.getenv("ANTHROPIC_API_KEY", ""),
             gemini_api_key=os.getenv("GEMINI_API_KEY", ""),
+            codex_bin=os.getenv("CODEX_BIN", "codex"),
+            codex_model=os.getenv("CODEX_MODEL", ""),
+            codex_timeout_seconds=int(os.getenv("CODEX_TIMEOUT_SECONDS", "300")),
             write_model=os.getenv("ANTHROPIC_MODEL_WRITE", "claude-opus-4-1"),
             light_model=os.getenv("ANTHROPIC_MODEL_LIGHT", "claude-haiku-4-5"),
             tts_model=os.getenv("GEMINI_TTS_MODEL", "gemini-2.5-flash-preview-tts"),

@@ -26,8 +26,17 @@ docker compose up --build
 - API : <http://localhost:8081/health>
 - administration : <http://localhost:8080/admin/> (Basic Auth nginx)
 
-Le mode `mock` produit une démonstration intégrale sans clé API. Passe ensuite
-`RADIO_AI_PROVIDER=anthropic` et `RADIO_TTS_PROVIDER=gemini` pour la production.
+Le mode `mock` produit une démonstration intégrale sans clé API. Pour utiliser le compte
+ChatGPT/Codex connecté sur la machine, lance une fois `codex login` (ou
+`codex login --device-auth` sur un serveur sans navigateur), vérifie avec `codex login status`,
+puis configure `RADIO_AI_PROVIDER=codex`. Aucune clé OpenAI ou
+Anthropic n'est alors nécessaire. `CODEX_MODEL` peut rester vide pour utiliser le modèle
+choisi par Codex. Le provider Anthropic reste disponible avec `uv sync --extra anthropic`.
+
+Le provider Codex lance chaque génération dans un dossier temporaire vide, en lecture seule,
+avec une session éphémère et une sortie JSON contrainte. Les commandes éditoriales utilisant
+Codex doivent être exécutées sur l'hôte où le CLI est connecté ; l'image Docker du sidecar
+n'embarque volontairement ni le CLI ni ses identifiants.
 
 ## Commandes
 
