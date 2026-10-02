@@ -187,7 +187,7 @@ def test_podcast_can_import_full_history_from_feed_content(tmp_path, monkeypatch
         "station": "degustation",
         "enabled": True,
         "history": "all",
-        "prefer_feed_content": True,
+        "content_mode": "feed",
         "min_interval_seconds": 0,
     }
     db.execute(
@@ -202,7 +202,14 @@ def test_podcast_can_import_full_history_from_feed_content(tmp_path, monkeypatch
                 "published": "Mon, 01 Jan 2018 12:00:00 +0000",
                 "title": "Ancien épisode",
                 "author": "La radio",
-                "summary": "Description détaillée de l'épisode. " * 10,
+                "summary": "Description détaillée de l'épisode avec suffisamment de contexte "
+                + "brassicole et narratif pour être exploitée correctement. " * 3,
+                "content": [
+                    {
+                        "value": "Description détaillée de l'épisode avec suffisamment de contexte "
+                        + "brassicole et narratif pour être exploitée correctement. " * 3
+                    }
+                ],
                 "itunes_duration": "1:02:03",
                 "itunes_season": "2",
                 "itunes_episode": "7",
@@ -236,6 +243,7 @@ def test_podcast_can_import_full_history_from_feed_content(tmp_path, monkeypatch
     row = db.one("SELECT raw_text,metadata_json FROM item")
     metadata = json.loads(row["metadata_json"])
     assert "Description détaillée" in row["raw_text"]
+    assert row["raw_text"].count("Description détaillée") == 1
     assert metadata == {
         "guid": "episode-guid",
         "audio_url": "https://audio.example.test/episode.mp3",

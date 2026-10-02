@@ -7,4 +7,6 @@ sources:
     station: degustation
     min_interval_seconds: 5
     history: all
-    prefer_feed_content: true
+    content_mode: feed
+    min_content_chars: 60
+    refresh_existing: true

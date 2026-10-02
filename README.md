@@ -109,9 +109,11 @@ tandis que les clés, jetons, mots de passe et paramètres sensibles sont masqu�
 
 Les sources peuvent aussi être rangées dans `config/sources.d/*.yaml`. Deux options sont utiles
 pour les podcasts : `history: all` désactive la limite d'âge pour cette source, et
-`prefer_feed_content: true` exploite directement la description RSS détaillée sans ouvrir la page
-de chaque épisode. Les liens audio, durées, saisons, numéros, images et catégories disponibles
-dans le flux sont conservés dans `item.metadata_json`, sans télécharger les MP3.
+`content_mode: feed` exploite directement la description RSS détaillée sans ouvrir la page de
+chaque épisode. `min_content_chars` adapte le seuil aux formats courts, tandis que
+`refresh_existing: true` actualise les épisodes modifiés sans les dupliquer. Les liens audio,
+durées, saisons, numéros, images et catégories disponibles dans le flux sont conservés dans
+`item.metadata_json`, sans télécharger les MP3.
 
 ## Architecture
 

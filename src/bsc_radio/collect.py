@@ -50,7 +50,14 @@ def _entry_text(entry: dict[str, Any]) -> str:
         item.get("value", "") for item in entry.get("content", []) if isinstance(item, dict)
     ]
     fragments.extend([entry.get("summary", ""), entry.get("description", "")])
-    plain = " ".join(fragment for fragment in fragments if fragment)
+    unique_fragments: list[str] = []
+    seen: set[str] = set()
+    for fragment in fragments:
+        normalized = str(fragment or "").strip()
+        if normalized and normalized not in seen:
+            unique_fragments.append(normalized)
+            seen.add(normalized)
+    plain = " ".join(unique_fragments)
     plain = re.sub(r"<[^>]+>", " ", plain)
     return re.sub(r"\s+", " ", html.unescape(plain)).strip()
 
@@ -318,14 +325,24 @@ class Collector:
                 skipped_reasons["too_old"] += 1
                 skipped += 1
                 continue
-            if self.db.one("SELECT id FROM item WHERE url=?", (url,)):
+            existing = self.db.one(
+                "SELECT id,content_hash,metadata_json FROM item WHERE url=?", (url,)
+            )
+            if existing and not source.get("refresh_existing", False):
                 skipped_reasons["duplicate"] += 1
                 skipped += 1
                 continue
             feed_text = _entry_text(entry)
-            text = feed_text if source.get("prefer_feed_content", False) else ""
+            content_mode = str(
+                source.get(
+                    "content_mode",
+                    "feed" if source.get("prefer_feed_content", False) else "auto",
+                )
+            ).casefold()
+            minimum_chars = int(source.get("min_content_chars", 120))
+            text = feed_text if content_mode == "feed" else ""
             page_error = None
-            if len(text) < 120 and self._allowed(url):
+            if content_mode != "feed" and len(text) < minimum_chars and self._allowed(url):
                 try:
                     self._wait(url, self._effective_delay(url, configured_delay))
                     page = httpx.get(
@@ -345,9 +362,9 @@ class Collector:
                         )
                 except (httpx.HTTPError, ValueError) as exc:
                     page_error = str(exc)
-            if len(text) < 120:
+            if len(text) < minimum_chars:
                 text = feed_text
-            if len(text) < 120:
+            if len(text) < minimum_chars:
                 if page_error:
                     self.db.execute(
                         "INSERT INTO incident(kind,message,context_json) VALUES(?,?,?)",
@@ -361,6 +378,28 @@ class Collector:
                 skipped += 1
                 continue
             digest = hashlib.sha256(text.encode()).hexdigest()
+            metadata_json = json.dumps(_entry_metadata(entry), ensure_ascii=False)
+            if existing:
+                if existing["content_hash"] != digest or existing["metadata_json"] != metadata_json:
+                    self.db.execute(
+                        """UPDATE item SET title=?,author=?,published_at=?,collected_at=?,
+                        content_hash=?,raw_text=?,metadata_json=? WHERE id=?""",
+                        (
+                            entry.get("title") or "Sans titre",
+                            entry.get("author"),
+                            published.isoformat(),
+                            now.isoformat(),
+                            digest,
+                            text,
+                            metadata_json,
+                            existing["id"],
+                        ),
+                    )
+                    skipped_reasons["refreshed"] += 1
+                else:
+                    skipped_reasons["duplicate"] += 1
+                skipped += 1
+                continue
             self.db.execute(
                 """INSERT INTO item(source_id,url,title,author,published_at,collected_at,content_hash,raw_text,metadata_json)
                 VALUES(?,?,?,?,?,?,?,?,?)""",
@@ -373,7 +412,7 @@ class Collector:
                     now.isoformat(),
                     digest,
                     text,
-                    json.dumps(_entry_metadata(entry), ensure_ascii=False),
+                    metadata_json,
                 ),
             )
             inserted += 1
