@@ -49,6 +49,7 @@ def test_commands_are_visible_in_help():
     assert "voices" in result.stdout
     assert "logs" in result.stdout
     assert "runs" in result.stdout
+    assert "delete" in result.stdout
 
 
 def test_say_resolves_display_name_and_provider_voice(tmp_path: Path, monkeypatch):
@@ -71,6 +72,27 @@ def test_say_resolves_display_name_and_provider_voice(tmp_path: Path, monkeypatc
     assert result.exit_code == 0
     assert calls[0][1] == "hqfrgApggtO1785R4Fsn"
     assert calls[0][2].name == "consultant.mp3"
+
+
+def test_delete_requires_confirmation_and_then_removes_episode(tmp_path: Path, monkeypatch):
+    cfg = settings(tmp_path)
+    db = Database(cfg.database)
+    db.migrate()
+    episode_id = db.execute(
+        "INSERT INTO episode(slug,title,format,station,status) VALUES(?,?,?,?,?)",
+        ("delete-me", "À supprimer", "journal", "brasserie", "draft"),
+    )
+    monkeypatch.setattr(cli.Settings, "load", lambda _root=None: cfg)
+
+    refused = runner.invoke(cli.app, ["delete", str(episode_id)])
+    assert refused.exit_code == 2
+    assert "--confirm" in refused.output
+    assert db.one("SELECT id FROM episode WHERE id=?", (episode_id,)) is not None
+
+    confirmed = runner.invoke(cli.app, ["delete", str(episode_id), "--confirm"])
+    assert confirmed.exit_code == 0
+    assert "supprimé définitivement" in confirmed.output
+    assert db.one("SELECT id FROM episode WHERE id=?", (episode_id,)) is None
 
 
 def test_episodes_lists_drafts_and_resume_publishes_them(tmp_path: Path, monkeypatch):

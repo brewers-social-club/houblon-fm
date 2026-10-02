@@ -47,10 +47,14 @@ class Publisher:
             "/confidentialite.html",
         ]
         podcast_items = []
+        expected_episode_pages: set[str] = set()
+        expected_audio_files: set[str] = set()
         for episode in episodes:
             script = json.loads(episode["script_json"])
             transcript = " ".join(line["text"] for line in script)
             audio_name = Path(episode["path"]).name
+            expected_audio_files.add(audio_name)
+            expected_episode_pages.add(f"{episode['slug']}.html")
             source = Path(episode["path"])
             if source.exists():
                 shutil.copy2(source, self.settings.site_dir / "audio" / audio_name)
@@ -106,6 +110,12 @@ class Publisher:
                 "UPDATE episode SET status='published',published_at=COALESCE(published_at,CURRENT_TIMESTAMP) WHERE id=?",
                 (episode["id"],),
             )
+        for path in (self.settings.site_dir / "episodes").glob("*.html"):
+            if path.name not in expected_episode_pages:
+                path.unlink()
+        for path in (self.settings.site_dir / "audio").glob("*.mp3"):
+            if path.name not in expected_audio_files:
+                path.unlink()
         body = f"""<section class=\"hero\"><p class=\"eyebrow\">EN CONSTRUCTION · 100 % SOURCÉE</p><h1>{html.escape(self.settings.radio["tagline"])}</h1><p>Actualité, technique, styles et histoire. Chaque phrase renvoie à ses sources.</p></section><section id=\"direct\"><h2>Le direct</h2><p>Une antenne continue en MP3 128 kb/s, accessible sans compte.</p><button class=\"primary\" onclick=\"document.querySelector('#play').click()\">Écouter maintenant</button></section><section id=\"replays\"><h2>Dernières émissions</h2><div class=\"grid\">{"".join(cards) or "<p>Les premières émissions arrivent.</p>"}</div></section>"""
         (self.settings.site_dir / "index.html").write_text(
             _page(self.settings.radio["name"], body, self.settings), encoding="utf-8"

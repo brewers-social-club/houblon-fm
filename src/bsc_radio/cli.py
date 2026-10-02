@@ -12,6 +12,7 @@ from .collect import Collector
 from .config import Settings
 from .db import Database
 from .editorial import EditorialPipeline
+from .episodes import delete_episode
 from .observability import PipelineLog, redact, tail_log
 from .providers import editorial_provider, voice_provider
 from .publish import Publisher
@@ -442,9 +443,47 @@ def video_series(list_only: bool = typer.Option(False, "--list")):
 
 @app.command()
 def withdraw(episode_id: int):
-    _, db, _, _ = services()
+    settings = Settings.load()
+    db = Database(settings.database)
+    db.migrate()
+    episode = db.one("SELECT id FROM episode WHERE id=?", (episode_id,))
+    if not episode:
+        typer.echo(f"Épisode #{episode_id} introuvable", err=True)
+        raise typer.Exit(1)
     db.execute("UPDATE episode SET hidden=1 WHERE id=?", (episode_id,))
-    typer.echo(f"Épisode #{episode_id} retiré")
+    Publisher(settings, db).publish()
+    typer.echo(f"Épisode #{episode_id} retiré et site republié")
+
+
+@app.command("delete")
+def delete_command(
+    episode_id: int,
+    confirm: bool = typer.Option(False, "--confirm", help="Confirmer la suppression définitive"),
+):
+    """Supprime définitivement un épisode, son audio et ses publications."""
+    settings = Settings.load()
+    db = Database(settings.database)
+    db.migrate()
+    episode = db.one("SELECT id,title FROM episode WHERE id=?", (episode_id,))
+    if not episode:
+        typer.echo(f"Épisode #{episode_id} introuvable", err=True)
+        raise typer.Exit(1)
+    if not confirm:
+        typer.echo(
+            f"Suppression refusée : ajoute --confirm pour supprimer définitivement "
+            f"#{episode_id} — {episode['title']}",
+            err=True,
+        )
+        raise typer.Exit(2)
+    try:
+        result = delete_episode(settings, db, episode_id)
+    except (OSError, RuntimeError, ValueError) as exc:
+        typer.echo(f"Suppression impossible : {_safe_failure_message(exc)}", err=True)
+        raise typer.Exit(1) from exc
+    typer.echo(
+        f"Épisode #{episode_id} supprimé définitivement, "
+        f"{result['audio_files']} fichier(s) audio retiré(s), site republié"
+    )
 
 
 @app.command()

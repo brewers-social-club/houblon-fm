@@ -96,6 +96,7 @@ radio logs --lines 100
 radio runs --limit 20
 radio publish
 radio withdraw 42
+radio delete 42 --confirm
 radio feedback
 radio airings
 radio stats
