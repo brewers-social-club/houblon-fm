@@ -52,8 +52,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             if not fallback.exists():
                 raise HTTPException(503, "Aucun audio disponible")
             return str(fallback)
+        stored_path = Path(track.path)
+        playable_path = (
+            stored_path
+            if stored_path.is_file()
+            else settings.data_dir / "audio" / stored_path.name
+        )
+        if not playable_path.is_file():
+            fallback = settings.data_dir / "fallback.mp3"
+            if not fallback.exists():
+                raise HTTPException(503, "Audio programmé introuvable")
+            return str(fallback)
         scheduler.mark_started(track)
-        return track.path
+        return str(playable_path)
 
     @app.get("/api/now")
     def now_playing():

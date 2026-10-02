@@ -47,6 +47,27 @@ def test_next_returns_generated_fallback_when_library_is_empty(tmp_path: Path):
     assert Path(response.text).is_file()
 
 
+def test_next_maps_legacy_host_audio_path_into_shared_data_dir(tmp_path: Path):
+    cfg = settings(tmp_path)
+    client = TestClient(create_app(cfg))
+    audio = cfg.data_dir / "audio" / "episode.mp3"
+    audio.write_bytes(b"ID3-test")
+    database = Database(cfg.database)
+    episode_id = database.execute(
+        "INSERT INTO episode(slug,title,format,station,status) VALUES(?,?,?,?,?)",
+        ("episode", "Épisode", "journal", "brasserie", "audio"),
+    )
+    database.execute(
+        "INSERT INTO audio(episode_id,path,duration_seconds,checksum) VALUES(?,?,?,?)",
+        (episode_id, "/ancienne/machine/data/audio/episode.mp3", 10, "test"),
+    )
+
+    response = client.get("/next")
+
+    assert response.status_code == 200
+    assert response.text == str(audio)
+
+
 def test_admin_requires_password(tmp_path: Path):
     cfg = settings(tmp_path)
     client = TestClient(create_app(cfg))
@@ -81,3 +102,6 @@ def test_compose_forces_shared_container_paths():
         "context": ".",
         "dockerfile": "deploy/Dockerfile.liquidsoap",
     }
+    assert "./data:/data" in compose["services"]["sidecar"]["volumes"]
+    assert "./data:/data" in compose["services"]["liquidsoap"]["volumes"]
+    assert "volumes" not in compose
