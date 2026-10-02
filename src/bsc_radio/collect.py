@@ -3,11 +3,15 @@ from __future__ import annotations
 import datetime as dt
 import email.utils
 import hashlib
+import html
 import json
+import re
 import time
 import urllib.parse
 import urllib.robotparser
 from typing import Any
+
+import httpx
 
 from .config import Settings
 from .db import Database
@@ -26,11 +30,39 @@ def _date(value: str | None) -> dt.datetime | None:
             return None
 
 
+def _entry_date(entry: dict[str, Any]) -> dt.datetime | None:
+    parsed = _date(entry.get("published") or entry.get("updated"))
+    if parsed:
+        return parsed
+    structured = entry.get("published_parsed") or entry.get("updated_parsed")
+    if structured:
+        try:
+            return dt.datetime(*structured[:6], tzinfo=dt.UTC)
+        except (TypeError, ValueError):
+            return None
+    return None
+
+
+def _entry_text(entry: dict[str, Any]) -> str:
+    fragments = [
+        item.get("value", "")
+        for item in entry.get("content", [])
+        if isinstance(item, dict)
+    ]
+    fragments.extend([entry.get("summary", ""), entry.get("description", "")])
+    plain = " ".join(fragment for fragment in fragments if fragment)
+    plain = re.sub(r"<[^>]+>", " ", plain)
+    return re.sub(r"\s+", " ", html.unescape(plain)).strip()
+
+
 class Collector:
     def __init__(self, settings: Settings, db: Database):
         self.settings = settings
         self.db = db
         self._last_domain_fetch: dict[str, float] = {}
+        self._robots_cache: dict[
+            str, tuple[urllib.robotparser.RobotFileParser | None, bool, float]
+        ] = {}
 
     def sync_sources(self) -> None:
         with self.db.transaction() as connection:
@@ -51,17 +83,54 @@ class Collector:
                     ),
                 )
 
-    def _allowed(self, url: str) -> bool:
+    def _robots_policy(
+        self, url: str
+    ) -> tuple[urllib.robotparser.RobotFileParser | None, bool, float]:
         parsed = urllib.parse.urlparse(url)
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            return None, False, 0.0
+        authority = f"{parsed.scheme}://{parsed.netloc}"
+        if authority in self._robots_cache:
+            return self._robots_cache[authority]
         robots_url = urllib.parse.urlunparse(
             (parsed.scheme, parsed.netloc, "/robots.txt", "", "", "")
         )
-        parser = urllib.robotparser.RobotFileParser(robots_url)
         try:
-            parser.read()
-            return parser.can_fetch(self.settings.user_agent, url)
-        except OSError:
-            return False
+            response = httpx.get(
+                robots_url,
+                headers={"User-Agent": self.settings.user_agent},
+                timeout=15,
+                follow_redirects=True,
+            )
+        except httpx.HTTPError:
+            policy = (None, False, 0.0)
+        else:
+            if 400 <= response.status_code < 500:
+                # RFC 9309 §2.3.1.3 : robots.txt indisponible, accès autorisé.
+                policy = (None, response.status_code != 429, 0.0)
+            elif response.status_code >= 500:
+                # RFC 9309 §2.3.1.4 : serveur injoignable, interdiction complète.
+                policy = (None, False, 0.0)
+            else:
+                response.raise_for_status()
+                parser = urllib.robotparser.RobotFileParser(robots_url)
+                parser.parse(response.text[:512_000].splitlines())
+                delay = parser.crawl_delay(self.settings.user_agent)
+                if delay is None:
+                    delay = parser.crawl_delay("*")
+                policy = (parser, True, float(delay or 0))
+        self._robots_cache[authority] = policy
+        return policy
+
+    def _allowed(self, url: str) -> bool:
+        parser, default_allowed, _ = self._robots_policy(url)
+        if parser is None:
+            return default_allowed
+        return parser.can_fetch(self.settings.user_agent, url)
+
+    def _effective_delay(self, url: str, configured_delay: float) -> float:
+        _, _, robots_delay = self._robots_policy(url)
+        return max(configured_delay, robots_delay)
 
     def _wait(self, url: str, delay: float) -> None:
         domain = urllib.parse.urlparse(url).netloc
@@ -134,10 +203,10 @@ class Collector:
         if not self._allowed(source["url"]):
             raise PermissionError(f"robots.txt interdit {source['url']}")
         import feedparser
-        import httpx
         import trafilatura
 
-        self._wait(source["url"], float(source.get("min_interval_seconds", 10)))
+        configured_delay = float(source.get("min_interval_seconds", 10))
+        self._wait(source["url"], self._effective_delay(source["url"], configured_delay))
         response = httpx.get(
             source["url"],
             headers={"User-Agent": self.settings.user_agent},
@@ -145,31 +214,66 @@ class Collector:
             follow_redirects=True,
         )
         response.raise_for_status()
+        final_feed_url = str(response.url)
+        if final_feed_url != source["url"] and not self._allowed(final_feed_url):
+            raise PermissionError(f"robots.txt interdit {final_feed_url}")
         feed = feedparser.parse(response.content)
+        if not feed.entries and getattr(feed, "bozo", False):
+            raise ValueError(f"Flux RSS invalide: {getattr(feed, 'bozo_exception', 'inconnu')}")
         now = dt.datetime.now(dt.UTC)
         max_age = dt.timedelta(days=int(self.settings.radio.get("item_max_age_days", 21)))
         inserted = skipped = 0
         for entry in feed.entries:
             url = entry.get("link")
-            published = _date(entry.get("published") or entry.get("updated"))
-            if not url or not published or now - published > max_age:
+            published = _entry_date(entry)
+            parsed_url = urllib.parse.urlparse(url or "")
+            if (
+                not url
+                or parsed_url.scheme not in {"http", "https"}
+                or not parsed_url.netloc
+                or not published
+                or published > now + dt.timedelta(days=1)
+                or now - published > max_age
+            ):
                 skipped += 1
                 continue
             if self.db.one("SELECT id FROM item WHERE url=?", (url,)):
                 skipped += 1
                 continue
-            self._wait(url, float(source.get("min_interval_seconds", 10)))
-            page = httpx.get(
-                url,
-                headers={"User-Agent": self.settings.user_agent},
-                timeout=30,
-                follow_redirects=True,
-            )
-            page.raise_for_status()
-            text = (
-                trafilatura.extract(page.text, include_comments=False, include_tables=False) or ""
-            )
+            text = ""
+            page_error = None
+            if self._allowed(url):
+                try:
+                    self._wait(url, self._effective_delay(url, configured_delay))
+                    page = httpx.get(
+                        url,
+                        headers={"User-Agent": self.settings.user_agent},
+                        timeout=30,
+                        follow_redirects=True,
+                    )
+                    page.raise_for_status()
+                    final_page_url = str(page.url)
+                    if final_page_url == url or self._allowed(final_page_url):
+                        text = (
+                            trafilatura.extract(
+                                page.text, include_comments=False, include_tables=False
+                            )
+                            or ""
+                        )
+                except (httpx.HTTPError, ValueError) as exc:
+                    page_error = str(exc)
             if len(text) < 120:
+                text = _entry_text(entry)
+            if len(text) < 120:
+                if page_error:
+                    self.db.execute(
+                        "INSERT INTO incident(kind,message,context_json) VALUES(?,?,?)",
+                        (
+                            "collect_item",
+                            page_error,
+                            json.dumps({"source": source["id"], "url": url}),
+                        ),
+                    )
                 skipped += 1
                 continue
             digest = hashlib.sha256(text.encode()).hexdigest()
@@ -179,7 +283,7 @@ class Collector:
                 (
                     source["id"],
                     url,
-                    entry.get("title", "Sans titre"),
+                    entry.get("title") or "Sans titre",
                     entry.get("author"),
                     published.isoformat(),
                     now.isoformat(),
