@@ -2,6 +2,10 @@ services:
   sidecar:
     build: .
     env_file: .env
+    environment:
+      RADIO_DATA_DIR: /data
+      RADIO_CONFIG_DIR: /app/config
+      RADIO_SITE_DIR: /site
     command: ["radio","sidecar","--host","0.0.0.0","--port","8081"]
     volumes: ["radio-data:/data", "./site/public:/site"]
     healthcheck: {test: ["CMD","python","-c","import urllib.request;urllib.request.urlopen('http://localhost:8081/health')"], interval: 15s, timeout: 5s, retries: 5}

@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import yaml
 from fastapi.testclient import TestClient
 
 from bsc_radio.db import Database
@@ -37,6 +38,15 @@ def test_health_and_auth_flow(tmp_path: Path):
     assert client.get("/api/me").json()["email"] == "radio@example.test"
 
 
+def test_next_returns_generated_fallback_when_library_is_empty(tmp_path: Path):
+    cfg = settings(tmp_path)
+    client = TestClient(create_app(cfg))
+    response = client.get("/next")
+    assert response.status_code == 200
+    assert response.text == str(cfg.data_dir / "fallback.mp3")
+    assert Path(response.text).is_file()
+
+
 def test_admin_requires_password(tmp_path: Path):
     cfg = settings(tmp_path)
     client = TestClient(create_app(cfg))
@@ -50,3 +60,19 @@ def test_admin_requires_password(tmp_path: Path):
 def test_liquidsoap_has_an_infallible_last_resort():
     script = (Path(__file__).parents[1] / "deploy/liquidsoap.liq").read_text(encoding="utf-8")
     assert "mksafe(fallback(" in script
+    assert "http.get(" in script
+    assert "result.status_code == 200" in script
+    assert "process.read(" not in script
+    assert "curl " not in script
+    assert "single(fallible=true, fallback_file)" in script
+
+
+def test_compose_forces_shared_container_paths():
+    root = Path(__file__).parents[1]
+    compose = yaml.safe_load((root / "docker-compose.yml").read_text(encoding="utf-8"))
+    environment = compose["services"]["sidecar"]["environment"]
+    assert environment == {
+        "RADIO_DATA_DIR": "/data",
+        "RADIO_CONFIG_DIR": "/app/config",
+        "RADIO_SITE_DIR": "/site",
+    }
