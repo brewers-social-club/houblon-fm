@@ -7,6 +7,10 @@ session éphémère, outils désactivés et réponse sous JSON Schema. Chaque é
 idempotente autant que possible. SQLite utilise WAL, `busy_timeout=30000` et des transactions
 courtes.
 
+Le provider Codex route extraction, regroupement et vérification vers `CODEX_MODEL_LIGHT`, puis
+écriture et réécriture vers `CODEX_MODEL_WRITE`. `CODEX_MODEL` reste un fallback commun pour les
+anciennes configurations.
+
 Le sidecar sert le programmateur, les comptes, les avis, les statistiques et l'administration.
 nginx sert le site statique et délègue les opérations dynamiques au sidecar. Liquidsoap demande
 un fichier à `/next` et bascule vers une piste de secours si le sidecar échoue.

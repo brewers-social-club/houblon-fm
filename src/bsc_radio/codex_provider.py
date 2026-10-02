@@ -118,7 +118,8 @@ class CodexEditorialProvider:
         runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
     ):
         self.binary = settings.codex_bin
-        self.model = settings.codex_model
+        self.light_model = settings.codex_light_model
+        self.write_model = settings.codex_write_model
         self.timeout = settings.codex_timeout_seconds
         self.prompts_dir = settings.root / "prompts"
         self._runner = runner
@@ -154,7 +155,13 @@ class CodexEditorialProvider:
         path = self.prompts_dir / f"{name}.md"
         return path.read_text(encoding="utf-8") if path.exists() else fallback
 
-    def _json(self, instruction: str, payload: dict[str, Any], schema: dict[str, Any]) -> Any:
+    def _json(
+        self,
+        instruction: str,
+        payload: dict[str, Any],
+        schema: dict[str, Any],
+        model: str,
+    ) -> Any:
         self._ensure_ready()
         request = (
             f"{instruction.strip()}\n\n"
@@ -206,8 +213,8 @@ class CodexEditorialProvider:
                 "--output-last-message",
                 str(output_path),
             ]
-            if self.model:
-                command.extend(["--model", self.model])
+            if model:
+                command.extend(["--model", model])
             command.append("-")
             try:
                 result = self._runner(
@@ -243,6 +250,7 @@ class CodexEditorialProvider:
             self._prompt("extract_facts", "Extrais des faits atomiques reformulés."),
             {"title": title, "text": text, "source": source},
             _FACT_SCHEMA,
+            self.light_model,
         )
         return list(result["facts"])
 
@@ -251,6 +259,7 @@ class CodexEditorialProvider:
             self._prompt("cluster", "Résume ce groupe de faits en sujet brassicole."),
             {"facts": facts},
             _TOPIC_SCHEMA,
+            self.light_model,
         )
 
     def write(
@@ -262,6 +271,7 @@ class CodexEditorialProvider:
             instruction,
             {"format": fmt, "facts": facts, "context": context},
             _SCRIPT_SCHEMA,
+            self.write_model,
         )
         return list(result["lines"])
 
@@ -270,6 +280,7 @@ class CodexEditorialProvider:
             self._prompt("verify", "Vérifie strictement la phrase contre ses faits."),
             {"sentence": sentence, "facts": facts},
             _VERDICT_SCHEMA,
+            self.light_model,
         )
 
     def rewrite(self, sentence: str, facts: list[dict[str, Any]]) -> str:
@@ -277,5 +288,6 @@ class CodexEditorialProvider:
             "Réécris la phrase pour qu'elle soit entièrement soutenue par les faits fournis.",
             {"sentence": sentence, "facts": facts},
             _REWRITE_SCHEMA,
+            self.write_model,
         )
         return str(result.get("text", ""))

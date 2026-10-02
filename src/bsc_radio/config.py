@@ -31,7 +31,8 @@ class Settings:
     anthropic_api_key: str
     gemini_api_key: str
     codex_bin: str
-    codex_model: str
+    codex_light_model: str
+    codex_write_model: str
     codex_timeout_seconds: int
     write_model: str
     light_model: str
@@ -47,6 +48,7 @@ class Settings:
         data = Path(os.getenv("RADIO_DATA_DIR", root / "data")).resolve()
         config = Path(os.getenv("RADIO_CONFIG_DIR", root / "config")).resolve()
         site = Path(os.getenv("RADIO_SITE_DIR", root / "site/public")).resolve()
+        codex_default_model = os.getenv("CODEX_MODEL", "").strip()
         return cls(
             root=root,
             data_dir=data,
@@ -62,7 +64,10 @@ class Settings:
             anthropic_api_key=os.getenv("ANTHROPIC_API_KEY", ""),
             gemini_api_key=os.getenv("GEMINI_API_KEY", ""),
             codex_bin=os.getenv("CODEX_BIN", "codex"),
-            codex_model=os.getenv("CODEX_MODEL", ""),
+            codex_light_model=os.getenv("CODEX_MODEL_LIGHT", "").strip()
+            or codex_default_model,
+            codex_write_model=os.getenv("CODEX_MODEL_WRITE", "").strip()
+            or codex_default_model,
             codex_timeout_seconds=int(os.getenv("CODEX_TIMEOUT_SECONDS", "300")),
             write_model=os.getenv("ANTHROPIC_MODEL_WRITE", "claude-opus-4-1"),
             light_model=os.getenv("ANTHROPIC_MODEL_LIGHT", "claude-haiku-4-5"),

@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from bsc_radio.codex_provider import CodexEditorialProvider
+from bsc_radio.config import Settings
 from bsc_radio.providers import editorial_provider
 from tests.helpers import settings
 
@@ -75,7 +76,14 @@ def test_codex_provider_uses_stdin_sandbox_and_structured_outputs(tmp_path: Path
     assert verdict["verdict"] == "supported"
     assert rewrite == "La fermentation a duré cinq jours."
     assert len(fake.calls) == 5
-    for call in fake.calls:
+    expected_models = [
+        "gpt-light-test",
+        "gpt-light-test",
+        "gpt-write-test",
+        "gpt-light-test",
+        "gpt-write-test",
+    ]
+    for call, expected_model in zip(fake.calls, expected_models, strict=True):
         command = call["command"]
         assert command[-1] == "-"
         assert "--ephemeral" in command
@@ -87,6 +95,7 @@ def test_codex_provider_uses_stdin_sandbox_and_structured_outputs(tmp_path: Path
         assert call["capture_output"] is True
         assert call["env"].keys() <= {"PATH", "HOME", "CODEX_HOME", "LANG", "LC_ALL"}
         assert "shell_environment_policy.inherit=none" in command
+        assert command[command.index("--model") + 1] == expected_model
         for feature in (
             "shell_tool",
             "unified_exec",
@@ -126,3 +135,30 @@ def test_factory_selects_codex(tmp_path: Path):
     cfg = settings(tmp_path)
     object.__setattr__(cfg, "ai_provider", "codex")
     assert isinstance(editorial_provider(cfg), CodexEditorialProvider)
+
+
+def test_legacy_codex_model_is_used_as_fallback(tmp_path: Path, monkeypatch):
+    monkeypatch.setenv("CODEX_MODEL", "legacy-model")
+    monkeypatch.delenv("CODEX_MODEL_LIGHT", raising=False)
+    monkeypatch.delenv("CODEX_MODEL_WRITE", raising=False)
+    cfg = Settings.load(tmp_path)
+    assert cfg.codex_light_model == "legacy-model"
+    assert cfg.codex_write_model == "legacy-model"
+
+
+def test_specific_codex_models_override_legacy_model(tmp_path: Path, monkeypatch):
+    monkeypatch.setenv("CODEX_MODEL", "legacy-model")
+    monkeypatch.setenv("CODEX_MODEL_LIGHT", "light-model")
+    monkeypatch.setenv("CODEX_MODEL_WRITE", "write-model")
+    cfg = Settings.load(tmp_path)
+    assert cfg.codex_light_model == "light-model"
+    assert cfg.codex_write_model == "write-model"
+
+
+def test_codex_omits_model_flag_when_no_model_is_configured(tmp_path: Path):
+    cfg = settings(tmp_path)
+    object.__setattr__(cfg, "codex_light_model", "")
+    object.__setattr__(cfg, "codex_write_model", "")
+    fake = FakeCodex()
+    CodexEditorialProvider(cfg, runner=fake).cluster([])
+    assert "--model" not in fake.calls[0]["command"]

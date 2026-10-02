@@ -29,9 +29,18 @@ docker compose up --build
 Le mode `mock` produit une démonstration intégrale sans clé API. Pour utiliser le compte
 ChatGPT/Codex connecté sur la machine, lance une fois `codex login` (ou
 `codex login --device-auth` sur un serveur sans navigateur), vérifie avec `codex login status`,
-puis configure `RADIO_AI_PROVIDER=codex`. Aucune clé OpenAI ou
-Anthropic n'est alors nécessaire. `CODEX_MODEL` peut rester vide pour utiliser le modèle
-choisi par Codex. Le provider Anthropic reste disponible avec `uv sync --extra anthropic`.
+puis configure `RADIO_AI_PROVIDER=codex`. Aucune clé OpenAI ou Anthropic n'est alors nécessaire.
+Le pipeline utilise `CODEX_MODEL_LIGHT` pour l'extraction, le regroupement et la vérification,
+et `CODEX_MODEL_WRITE` pour l'écriture et la réécriture. Configuration recommandée :
+
+```env
+CODEX_MODEL_LIGHT=gpt-6-luna
+CODEX_MODEL_WRITE=gpt-6.1-sol
+```
+
+L'ancien `CODEX_MODEL` reste accepté comme valeur commune de secours. Si les variables sont
+vides, Codex choisit son modèle recommandé. Le provider Anthropic reste disponible avec
+`uv sync --extra anthropic`.
 
 Le provider Codex lance chaque génération dans un dossier temporaire vide, en lecture seule,
 avec une session éphémère et une sortie JSON contrainte. Les commandes éditoriales utilisant
