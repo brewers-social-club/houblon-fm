@@ -257,9 +257,12 @@ class ElevenLabsVoiceProvider:
         self.style = settings.elevenlabs_style
 
     def synthesize(self, text: str, voice: str, output: Path, style: str = "") -> None:
-        del voice, style
+        del style
+        voice_id = voice.strip() or self.voice_id.strip()
+        if not re.fullmatch(r"[A-Za-z0-9_-]+", voice_id):
+            raise ValueError("Identifiant de voix ElevenLabs invalide")
         response = httpx.post(
-            f"https://api.elevenlabs.io/v1/text-to-speech/{self.voice_id}",
+            f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}",
             params={"output_format": "mp3_44100_128"},
             headers={"xi-api-key": self.api_key, "Content-Type": "application/json"},
             json={

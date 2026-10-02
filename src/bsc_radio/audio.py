@@ -6,6 +6,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+from .characters import canonicalize_script, character_voice, resolve_character
 from .config import Settings
 from .db import Database
 from .providers import VoiceProvider
@@ -92,19 +93,27 @@ class AudioProducer:
         episode = self.db.one("SELECT * FROM episode WHERE id=?", (episode_id,))
         if not episode or episode["status"] not in {"verified", "audio", "published"}:
             raise ValueError("L'épisode doit être vérifié avant vocalisation")
-        lines = json.loads(episode["script_json"])
+        lines = canonicalize_script(json.loads(episode["script_json"]), self.settings.characters)
         characters = self.settings.characters
         destination = self.settings.data_dir / "audio" / f"{episode['slug']}.mp3"
         destination.parent.mkdir(parents=True, exist_ok=True)
-        with tempfile.TemporaryDirectory(prefix="radio-episode-", dir=destination.parent) as temp_dir:
+        with tempfile.TemporaryDirectory(
+            prefix="radio-episode-", dir=destination.parent
+        ) as temp_dir:
             temp = Path(temp_dir)
             parts: list[Path] = []
             for index, take in enumerate(group_script_takes(lines)):
-                character = characters.get(take["character"], characters["presenter"])
+                _, character = resolve_character(characters, take["character"])
                 part = temp / f"{index:03}.mp3"
                 self.voice.synthesize(
                     self._pronounce(take["text"]),
-                    character["voice"],
+                    character_voice(
+                        character,
+                        self.settings.tts_provider,
+                        self.settings.elevenlabs_voice_id
+                        if self.settings.tts_provider == "elevenlabs"
+                        else "",
+                    ),
                     part,
                     f"Français naturel, vivant sans excès. Personnage fictif: {character['description']}",
                 )

@@ -5,6 +5,7 @@ import yaml
 from fastapi.testclient import TestClient
 
 from bsc_radio.audio import AudioProducer, duration, group_script_takes
+from bsc_radio.characters import canonicalize_script, character_voice, resolve_character
 from bsc_radio.db import Database
 from bsc_radio.providers import ElevenLabsVoiceProvider, GeminiVoiceProvider, MockVoiceProvider
 from bsc_radio.sidecar import create_app
@@ -45,7 +46,7 @@ def test_gemini_voice_wraps_raw_pcm_and_encodes_mp3(tmp_path: Path):
     assert duration(output) > 0
 
 
-def test_elevenlabs_voice_requests_mp3_without_exposing_key(tmp_path: Path, monkeypatch):
+def test_elevenlabs_voice_uses_requested_voice_without_exposing_key(tmp_path: Path, monkeypatch):
     cfg = settings(tmp_path)
     object.__setattr__(cfg, "elevenlabs_api_key", "protected-test-key")
     calls = []
@@ -64,14 +65,119 @@ def test_elevenlabs_voice_requests_mp3_without_exposing_key(tmp_path: Path, monk
     monkeypatch.setattr("bsc_radio.providers.httpx.post", fake_post)
     output = tmp_path / "elevenlabs.mp3"
 
-    ElevenLabsVoiceProvider(cfg).synthesize("Une vraie voix.", "ignored", output)
+    ElevenLabsVoiceProvider(cfg).synthesize("Une vraie voix.", "voice-marcel", output)
 
     assert output.read_bytes() == b"ID3-real-voice"
-    assert calls[0][0].endswith("/test-voice")
+    assert calls[0][0].endswith("/voice-marcel")
     assert calls[0][1]["params"] == {"output_format": "mp3_44100_128"}
     assert calls[0][1]["headers"]["xi-api-key"] == "protected-test-key"
     assert calls[0][1]["json"]["model_id"] == "test-model"
     assert calls[0][1]["json"]["voice_settings"]["style"] == 0.6
+
+
+def test_elevenlabs_voice_falls_back_and_rejects_malformed_ids(tmp_path: Path, monkeypatch):
+    cfg = settings(tmp_path)
+    object.__setattr__(cfg, "elevenlabs_api_key", "protected-test-key")
+    calls = []
+
+    class Response:
+        content = b"ID3-real-voice"
+
+        @staticmethod
+        def raise_for_status():
+            return None
+
+    monkeypatch.setattr(
+        "bsc_radio.providers.httpx.post",
+        lambda url, **kwargs: calls.append((url, kwargs)) or Response(),
+    )
+    provider = ElevenLabsVoiceProvider(cfg)
+    provider.synthesize("Voix de secours.", "", tmp_path / "fallback.mp3")
+
+    assert calls[0][0].endswith("/test-voice")
+    try:
+        provider.synthesize("Voix invalide.", "../intrus", tmp_path / "invalid.mp3")
+    except ValueError as exc:
+        assert "invalide" in str(exc)
+    else:  # pragma: no cover - garde de sécurité
+        raise AssertionError("Un identifiant de voix malformé doit être refusé")
+    assert len(calls) == 1
+
+
+def test_character_names_aliases_and_provider_voices_are_resolved():
+    characters = {
+        "presenter": {
+            "name": "Camille",
+            "aliases": ["présentatrice"],
+            "voice": {"gemini": "Kore", "elevenlabs": "voice-camille"},
+        },
+        "consultant": {
+            "name": "Marcel",
+            "voice": {"gemini": "Orus", "elevenlabs": "voice-marcel"},
+        },
+    }
+
+    assert resolve_character(characters, "Camille")[0] == "presenter"
+    assert resolve_character(characters, "présentatrice")[0] == "presenter"
+    assert resolve_character(characters, "Marcel")[0] == "consultant"
+    assert resolve_character(characters, "inconnu")[0] == "presenter"
+    assert character_voice(characters["presenter"], "gemini") == "Kore"
+    assert character_voice(characters["presenter"], "elevenlabs") == "voice-camille"
+    assert character_voice({"voice": "legacy"}, "elevenlabs") == "legacy"
+
+
+def test_character_aliases_are_canonicalized_before_grouping_takes():
+    characters = {
+        "presenter": {"name": "Camille", "voice": "one"},
+        "consultant": {"name": "Marcel", "voice": "two"},
+    }
+    lines = canonicalize_script(
+        [
+            {"character": "Camille", "text": "Bonjour."},
+            {"character": "presenter", "text": "La suite."},
+            {"character": "Marcel", "text": "Mon analyse."},
+        ],
+        characters,
+    )
+
+    assert group_script_takes(lines) == [
+        {"character": "presenter", "text": "Bonjour.\n\nLa suite."},
+        {"character": "consultant", "text": "Mon analyse."},
+    ]
+
+
+def test_audio_producer_sends_each_character_to_its_elevenlabs_voice(tmp_path: Path):
+    cfg = settings(tmp_path)
+    object.__setattr__(cfg, "tts_provider", "elevenlabs")
+    db = Database(cfg.database)
+    db.migrate()
+    episode_id = db.execute(
+        """INSERT INTO episode(slug,title,format,station,status,script_json)
+        VALUES(?,?,?,?,?,?)""",
+        (
+            "dialogue",
+            "Dialogue",
+            "journal",
+            "brasserie",
+            "verified",
+            '[{"character":"Camille","text":"Bonjour."},'
+            '{"character":"Marcel","text":"Mon analyse."}]',
+        ),
+    )
+    calls = []
+
+    class RecordingVoice:
+        @staticmethod
+        def synthesize(text, voice, output, style=""):
+            calls.append((text, voice, style))
+            MockVoiceProvider().synthesize(text, voice, output, style)
+
+    AudioProducer(cfg, db, RecordingVoice()).produce(episode_id)
+
+    assert [call[1] for call in calls] == [
+        "O31r762Gb3WFygrEOGh0",
+        "hqfrgApggtO1785R4Fsn",
+    ]
 
 
 def test_consecutive_lines_share_one_voice_take():
@@ -119,7 +225,10 @@ def test_revoice_preserves_audio_id_referenced_by_airing(tmp_path: Path):
     assert row["id"] == audio_id
     assert row["path"] == str(output)
     assert row["checksum"] != "ancien"
-    assert db.one("SELECT audio_id FROM airing WHERE episode_id=?", (episode_id,))["audio_id"] == audio_id
+    assert (
+        db.one("SELECT audio_id FROM airing WHERE episode_id=?", (episode_id,))["audio_id"]
+        == audio_id
+    )
 
 
 def test_health_and_auth_flow(tmp_path: Path):

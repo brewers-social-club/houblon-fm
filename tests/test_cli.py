@@ -22,7 +22,14 @@ def draft_services(tmp_path: Path):
     episode_id = db.execute(
         """INSERT INTO episode(slug,title,format,station,status,script_json)
         VALUES(?,?,?,?,?,?)""",
-        ("journal-incomplet", "Journal incomplet", "journal", "brasserie", "draft", json.dumps(script)),
+        (
+            "journal-incomplet",
+            "Journal incomplet",
+            "journal",
+            "brasserie",
+            "draft",
+            json.dumps(script),
+        ),
     )
     db.execute(
         """INSERT INTO sentence(episode_id,position,character,text,fact_ids_json)
@@ -39,6 +46,29 @@ def test_commands_are_visible_in_help():
     assert result.exit_code == 0
     assert "episodes" in result.stdout
     assert "resume" in result.stdout
+    assert "voices" in result.stdout
+
+
+def test_say_resolves_display_name_and_provider_voice(tmp_path: Path, monkeypatch):
+    cfg, db, editorial, audio, _ = draft_services(tmp_path)
+    object.__setattr__(cfg, "tts_provider", "elevenlabs")
+    calls = []
+
+    class VoiceSpy:
+        @staticmethod
+        def synthesize(text, voice, output, style=""):
+            calls.append((text, voice, output, style))
+            output.parent.mkdir(parents=True, exist_ok=True)
+            output.write_bytes(b"ID3")
+
+    monkeypatch.setattr(cli, "services", lambda: (cfg, db, editorial, audio))
+    monkeypatch.setattr(cli, "voice_provider", lambda _settings: VoiceSpy())
+
+    result = runner.invoke(cli.app, ["say", "Salut Marcel.", "--character", "Marcel"])
+
+    assert result.exit_code == 0
+    assert calls[0][1] == "hqfrgApggtO1785R4Fsn"
+    assert calls[0][2].name == "consultant.mp3"
 
 
 def test_episodes_lists_drafts_and_resume_publishes_them(tmp_path: Path, monkeypatch):
@@ -53,7 +83,9 @@ def test_episodes_lists_drafts_and_resume_publishes_them(tmp_path: Path, monkeyp
     assert resumed.exit_code == 0
     assert f"Épisode #{episode_id} publié" in resumed.stdout
     assert db.one("SELECT status FROM episode WHERE id=?", (episode_id,))["status"] == "published"
-    assert db.one("SELECT COUNT(*) count FROM audio WHERE episode_id=?", (episode_id,))["count"] == 1
+    assert (
+        db.one("SELECT COUNT(*) count FROM audio WHERE episode_id=?", (episode_id,))["count"] == 1
+    )
 
     second_resume = runner.invoke(cli.app, ["resume", str(episode_id)])
     assert second_resume.exit_code == 0

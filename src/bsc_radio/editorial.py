@@ -8,6 +8,7 @@ import unicodedata
 from dataclasses import dataclass
 from typing import Any
 
+from .characters import canonicalize_script
 from .config import Settings
 from .db import Database
 from .providers import EditorialProvider
@@ -130,7 +131,9 @@ class EditorialPipeline:
             "characters": self.settings.characters,
             "law": "Information objective. Aucune incitation, réussite, fête ou ciblage de mineurs.",
         }
-        script = self.provider.write(fmt, facts, context)
+        script = canonicalize_script(
+            self.provider.write(fmt, facts, context), self.settings.characters
+        )
         episode_title = title or self.settings.schedule["formats"].get(fmt, {}).get(
             "label", fmt.title()
         )

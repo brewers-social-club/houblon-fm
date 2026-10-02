@@ -1,17 +1,28 @@
 presenter:
   name: Camille
   description: Présentatrice fictive, claire, chaleureuse et factuelle.
-  voice: Kore
+  aliases: [animatrice, présentatrice]
+  voice:
+    gemini: Kore
+    elevenlabs: O31r762Gb3WFygrEOGh0
 consultant:
   name: Marcel
   description: Maître brasseur fictif, pédagogue et précis.
-  voice: Orus
+  aliases: [expert, maître brasseur]
+  voice:
+    gemini: Orus
+    elevenlabs: hqfrgApggtO1785R4Fsn
 storyteller:
   name: Jeanne
   description: Zythologue fictive, vive et sensible à l'histoire.
-  voice: Aoede
+  aliases: [zythologue, narratrice]
+  voice:
+    gemini: Aoede
+    elevenlabs: liiuwXIkU9JRzMLLqlt9
 audience:
   name: Noé
   description: Porte-parole fictif des auditeurs, naturel et direct.
-  voice: Puck
-
+  aliases: [auditeur, public]
+  voice:
+    gemini: Puck
+    elevenlabs: n1u6R6yj3qEpDLH3liBh

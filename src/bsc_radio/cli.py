@@ -7,6 +7,7 @@ import re
 import typer
 
 from .audio import AudioProducer
+from .characters import canonicalize_script, character_voice, resolve_character
 from .collect import Collector
 from .config import Settings
 from .db import Database
@@ -234,10 +235,33 @@ def revoice(episode_id: int):
 @app.command()
 def say(text: str, character: str = "presenter"):
     settings, _, _, _ = services()
-    profile = settings.characters[character]
-    output = settings.data_dir / "preview" / f"{character}.mp3"
-    voice_provider(settings).synthesize(text, profile["voice"], output, profile["description"])
+    role, profile = resolve_character(settings.characters, character)
+    output = settings.data_dir / "preview" / f"{role}.mp3"
+    voice_provider(settings).synthesize(
+        text,
+        character_voice(
+            profile,
+            settings.tts_provider,
+            settings.elevenlabs_voice_id if settings.tts_provider == "elevenlabs" else "",
+        ),
+        output,
+        profile["description"],
+    )
     typer.echo(str(output))
+
+
+@app.command()
+def voices():
+    """Affiche le casting TTS résolu pour le fournisseur actif."""
+    settings = Settings.load()
+    for role in settings.characters:
+        _, profile = resolve_character(settings.characters, role)
+        voice = character_voice(
+            profile,
+            settings.tts_provider,
+            settings.elevenlabs_voice_id if settings.tts_provider == "elevenlabs" else "",
+        )
+        typer.echo(f"{role}: {profile.get('name', role)} -> {voice or '(non configurée)'}")
 
 
 @app.command()
@@ -254,7 +278,7 @@ def import_scripts(directory: str = "emissions"):
     for path in sorted((settings.root / directory).glob("*.json")):
         document = json.loads(path.read_text(encoding="utf-8"))
         slug = document.get("slug") or path.stem
-        script = document["script"]
+        script = canonicalize_script(document["script"], settings.characters)
         existing = db.one("SELECT id FROM episode WHERE slug=?", (slug,))
         with db.transaction() as connection:
             if existing:

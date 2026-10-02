@@ -62,7 +62,21 @@ n'embarque volontairement ni le CLI ni ses identifiants.
 Pour une vraie voix, configurez `RADIO_TTS_PROVIDER=elevenlabs` avec
 `ELEVENLABS_API_KEY`, ou `RADIO_TTS_PROVIDER=gemini` avec `GEMINI_API_KEY`. Le provider
 ElevenLabs utilise par défaut Adam, `eleven_turbo_v2_5`, un style à `0.6` et produit du MP3
-128 kb/s. `radio revoice <id>` remplace atomiquement l'audio d'une émission existante.
+128 kb/s. Chaque personnage peut toutefois utiliser sa propre voix dans
+`config/characters.yaml`, avec une entrée par fournisseur :
+
+```yaml
+presenter:
+  name: Camille
+  voice:
+    gemini: Kore
+    elevenlabs: O31r762Gb3WFygrEOGh0
+```
+
+Les identifiants ElevenLabs sont visibles dans la bibliothèque de voix du compte. La commande
+`radio voices` affiche le casting effectivement résolu. `radio say "Test" --character Camille`
+permet d'écouter un personnage, et `radio revoice <id>` remplace atomiquement l'audio d'une
+émission existante avec le casting courant.
 
 ## Commandes
 
@@ -76,6 +90,7 @@ radio episodes --status failed
 radio resume 42
 radio import-scripts emissions
 radio voice-queue --max 3
+radio voices
 radio say "Une India Pale Ale houblonnée" --character presenter
 radio publish
 radio withdraw 42
