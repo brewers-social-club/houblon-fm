@@ -20,4 +20,10 @@ sources:
     enabled: false
     station: degustation
     min_interval_seconds: 15
-
+  - id: beernews
+    name: BeerNews
+    kind: rss
+    url: https://beernews.fr/rss/
+    enabled: true
+    station: degustation
+    min_interval_seconds: 15
