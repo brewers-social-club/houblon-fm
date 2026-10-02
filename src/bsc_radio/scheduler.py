@@ -55,9 +55,13 @@ class Scheduler:
             GROUP BY e.id,a.id ORDER BY last_airing IS NOT NULL,last_airing,e.created_at"""
         )
         candidates = [row for row in rows if not last or row["episode_id"] != last["episode_id"]]
+        if not candidates and len(rows) == 1:
+            candidates = rows
         if fixed:
             candidates = [row for row in candidates if row["format"] == fixed] or candidates
             reason = f"créneau fixe {fixed}"
+        elif len(rows) == 1:
+            reason = "seule émission disponible"
         else:
             different = [row for row in candidates if not last or row["format"] != last["format"]]
             candidates = different or candidates

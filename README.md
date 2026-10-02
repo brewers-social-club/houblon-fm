@@ -47,6 +47,11 @@ avec une session éphémère et une sortie JSON contrainte. Les commandes édito
 Codex doivent être exécutées sur l'hôte où le CLI est connecté ; l'image Docker du sidecar
 n'embarque volontairement ni le CLI ni ses identifiants.
 
+Pour une vraie voix, configurez `RADIO_TTS_PROVIDER=elevenlabs` avec
+`ELEVENLABS_API_KEY`, ou `RADIO_TTS_PROVIDER=gemini` avec `GEMINI_API_KEY`. Le provider
+ElevenLabs utilise par défaut Adam, `eleven_turbo_v2_5`, un style à `0.6` et produit du MP3
+128 kb/s. `radio revoice <id>` remplace atomiquement l'audio d'une émission existante.
+
 ## Commandes
 
 ```bash

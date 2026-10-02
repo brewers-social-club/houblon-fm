@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import shutil
 import subprocess
 import tempfile
 from pathlib import Path
@@ -10,6 +9,19 @@ from pathlib import Path
 from .config import Settings
 from .db import Database
 from .providers import VoiceProvider
+
+
+def group_script_takes(lines: list[dict[str, object]]) -> list[dict[str, str]]:
+    """Keep one TTS take per contiguous character block."""
+    takes: list[dict[str, str]] = []
+    for line in lines:
+        character = str(line["character"])
+        text = str(line["text"]).strip()
+        if takes and takes[-1]["character"] == character:
+            takes[-1]["text"] += f"\n\n{text}"
+        else:
+            takes.append({"character": character, "text": text})
+    return takes
 
 
 def _run(command: list[str]) -> None:
@@ -84,14 +96,14 @@ class AudioProducer:
         characters = self.settings.characters
         destination = self.settings.data_dir / "audio" / f"{episode['slug']}.mp3"
         destination.parent.mkdir(parents=True, exist_ok=True)
-        with tempfile.TemporaryDirectory() as temp_dir:
+        with tempfile.TemporaryDirectory(prefix="radio-episode-", dir=destination.parent) as temp_dir:
             temp = Path(temp_dir)
             parts: list[Path] = []
-            for index, line in enumerate(lines):
-                character = characters.get(line["character"], characters["presenter"])
+            for index, take in enumerate(group_script_takes(lines)):
+                character = characters.get(take["character"], characters["presenter"])
                 part = temp / f"{index:03}.mp3"
                 self.voice.synthesize(
-                    self._pronounce(line["text"]),
+                    self._pronounce(take["text"]),
                     character["voice"],
                     part,
                     f"Français naturel, vivant sans excès. Personnage fictif: {character['description']}",
@@ -123,7 +135,7 @@ class AudioProducer:
                     str(mixed),
                 ]
             )
-            shutil.copy2(mixed, destination)
+            mixed.replace(destination)
         seconds = duration(destination)
         checksum = hashlib.sha256(destination.read_bytes()).hexdigest()
         with self.db.transaction() as connection:

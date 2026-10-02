@@ -155,6 +155,20 @@ def test_specific_codex_models_override_legacy_model(tmp_path: Path, monkeypatch
     assert cfg.codex_write_model == "write-model"
 
 
+def test_settings_loads_local_dotenv_for_host_commands(tmp_path: Path, monkeypatch):
+    monkeypatch.delenv("RADIO_TTS_PROVIDER", raising=False)
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    (tmp_path / ".env").write_text(
+        "RADIO_TTS_PROVIDER=gemini\nGEMINI_API_KEY=test-key\n",
+        encoding="utf-8",
+    )
+
+    cfg = Settings.load(tmp_path)
+
+    assert cfg.tts_provider == "gemini"
+    assert cfg.gemini_api_key == "test-key"
+
+
 def test_codex_omits_model_flag_when_no_model_is_configured(tmp_path: Path):
     cfg = settings(tmp_path)
     object.__setattr__(cfg, "codex_light_model", "")

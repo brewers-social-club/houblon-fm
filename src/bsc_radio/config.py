@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from dotenv import load_dotenv
+
 
 def _yaml(path: Path) -> dict[str, Any]:
     try:
@@ -30,6 +32,10 @@ class Settings:
     session_secret: str
     anthropic_api_key: str
     gemini_api_key: str
+    elevenlabs_api_key: str
+    elevenlabs_voice_id: str
+    elevenlabs_model: str
+    elevenlabs_style: float
     codex_bin: str
     codex_light_model: str
     codex_write_model: str
@@ -45,6 +51,7 @@ class Settings:
     @classmethod
     def load(cls, root: Path | None = None) -> Settings:
         root = (root or Path.cwd()).resolve()
+        load_dotenv(root / ".env", override=False)
         data = Path(os.getenv("RADIO_DATA_DIR", root / "data")).resolve()
         config = Path(os.getenv("RADIO_CONFIG_DIR", root / "config")).resolve()
         site = Path(os.getenv("RADIO_SITE_DIR", root / "site/public")).resolve()
@@ -63,6 +70,12 @@ class Settings:
             session_secret=os.getenv("RADIO_SESSION_SECRET", "development-only"),
             anthropic_api_key=os.getenv("ANTHROPIC_API_KEY", ""),
             gemini_api_key=os.getenv("GEMINI_API_KEY", ""),
+            elevenlabs_api_key=os.getenv("ELEVENLABS_API_KEY", ""),
+            elevenlabs_voice_id=os.getenv(
+                "ELEVENLABS_VOICE_ID", "pNInz6obpgDQGcFmaJgB"
+            ),
+            elevenlabs_model=os.getenv("ELEVENLABS_MODEL", "eleven_turbo_v2_5"),
+            elevenlabs_style=float(os.getenv("ELEVENLABS_STYLE", "0.6")),
             codex_bin=os.getenv("CODEX_BIN", "codex"),
             codex_light_model=os.getenv("CODEX_MODEL_LIGHT", "").strip()
             or codex_default_model,

@@ -1,10 +1,12 @@
 from pathlib import Path
+from types import SimpleNamespace
 
 import yaml
 from fastapi.testclient import TestClient
 
+from bsc_radio.audio import duration, group_script_takes
 from bsc_radio.db import Database
-from bsc_radio.providers import MockVoiceProvider
+from bsc_radio.providers import ElevenLabsVoiceProvider, GeminiVoiceProvider, MockVoiceProvider
 from bsc_radio.sidecar import create_app
 from tests.helpers import settings
 
@@ -16,6 +18,73 @@ def test_mock_voice_creates_mp3(tmp_path: Path):
     output = tmp_path / "voice.mp3"
     MockVoiceProvider().synthesize("Un court essai de voix.", "mock", output)
     assert output.read_bytes()[:3] in {b"ID3", b"\xff\xfb", b"\xff\xf3"}
+
+
+def test_gemini_voice_wraps_raw_pcm_and_encodes_mp3(tmp_path: Path):
+    inline_data = SimpleNamespace(
+        data=b"\x00\x10" * 2400,
+        mime_type="audio/L16;codec=pcm;rate=24000",
+    )
+    response = SimpleNamespace(
+        candidates=[
+            SimpleNamespace(
+                content=SimpleNamespace(parts=[SimpleNamespace(inline_data=inline_data)])
+            )
+        ]
+    )
+    provider = object.__new__(GeminiVoiceProvider)
+    provider.client = SimpleNamespace(
+        models=SimpleNamespace(generate_content=lambda **_kwargs: response)
+    )
+    provider.model = "gemini-test-tts"
+    output = tmp_path / "gemini.mp3"
+
+    provider.synthesize("Une vraie voix.", "Kore", output)
+
+    assert output.read_bytes()[:3] in {b"ID3", b"\xff\xfb", b"\xff\xf3"}
+    assert duration(output) > 0
+
+
+def test_elevenlabs_voice_requests_mp3_without_exposing_key(tmp_path: Path, monkeypatch):
+    cfg = settings(tmp_path)
+    object.__setattr__(cfg, "elevenlabs_api_key", "protected-test-key")
+    calls = []
+
+    class Response:
+        content = b"ID3-real-voice"
+
+        @staticmethod
+        def raise_for_status():
+            return None
+
+    def fake_post(url, **kwargs):
+        calls.append((url, kwargs))
+        return Response()
+
+    monkeypatch.setattr("bsc_radio.providers.httpx.post", fake_post)
+    output = tmp_path / "elevenlabs.mp3"
+
+    ElevenLabsVoiceProvider(cfg).synthesize("Une vraie voix.", "ignored", output)
+
+    assert output.read_bytes() == b"ID3-real-voice"
+    assert calls[0][0].endswith("/test-voice")
+    assert calls[0][1]["params"] == {"output_format": "mp3_44100_128"}
+    assert calls[0][1]["headers"]["xi-api-key"] == "protected-test-key"
+    assert calls[0][1]["json"]["model_id"] == "test-model"
+    assert calls[0][1]["json"]["voice_settings"]["style"] == 0.6
+
+
+def test_consecutive_lines_share_one_voice_take():
+    assert group_script_takes(
+        [
+            {"character": "presenter", "text": "Première phrase."},
+            {"character": "presenter", "text": "Deuxième phrase."},
+            {"character": "consultant", "text": "Réponse."},
+        ]
+    ) == [
+        {"character": "presenter", "text": "Première phrase.\n\nDeuxième phrase."},
+        {"character": "consultant", "text": "Réponse."},
+    ]
 
 
 def test_health_and_auth_flow(tmp_path: Path):

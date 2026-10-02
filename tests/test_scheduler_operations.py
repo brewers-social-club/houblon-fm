@@ -35,6 +35,23 @@ def test_scheduler_avoids_same_episode_and_format(tmp_path: Path):
     assert track.episode_id == 3
 
 
+def test_scheduler_reuses_the_only_available_episode(tmp_path: Path):
+    cfg = settings(tmp_path)
+    db = Database(cfg.database)
+    db.migrate()
+    audio_episode(db, 1, "journal", "Journal unique")
+    db.execute(
+        "INSERT INTO airing(episode_id,audio_id,started_at) VALUES(1,1,?)",
+        (dt.datetime.now(dt.UTC).isoformat(),),
+    )
+
+    track = Scheduler(cfg, db).next(dt.datetime(2026, 10, 1, 12, tzinfo=dt.UTC))
+
+    assert track is not None
+    assert track.episode_id == 1
+    assert track.reason == "seule émission disponible"
+
+
 def test_task_lease_is_exclusive(tmp_path: Path):
     db = Database(settings(tmp_path).database)
     db.migrate()

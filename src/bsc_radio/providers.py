@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import re
 import struct
 import subprocess
 import tempfile
@@ -10,6 +11,8 @@ import wave
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
+
+import httpx
 
 from .config import Settings
 
@@ -210,9 +213,70 @@ class GeminiVoiceProvider:
                 ),
             ),
         )
-        data = response.candidates[0].content.parts[0].inline_data.data
+        inline_data = response.candidates[0].content.parts[0].inline_data
+        if not inline_data or not inline_data.data:
+            raise RuntimeError("Gemini TTS n'a renvoyé aucun audio")
+        data = inline_data.data
+        mime_type = (inline_data.mime_type or "").lower()
         output.parent.mkdir(parents=True, exist_ok=True)
-        output.write_bytes(data)
+        with tempfile.TemporaryDirectory(prefix="gemini-tts-") as directory:
+            source = Path(directory) / "speech.wav"
+            if data[:4] == b"RIFF" or "audio/wav" in mime_type:
+                source.write_bytes(data)
+            else:
+                rate_match = re.search(r"rate=(\d+)", mime_type)
+                sample_rate = int(rate_match.group(1)) if rate_match else 24000
+                with wave.open(str(source), "wb") as handle:
+                    handle.setnchannels(1)
+                    handle.setsampwidth(2)
+                    handle.setframerate(sample_rate)
+                    handle.writeframes(data)
+            subprocess.run(
+                [
+                    "ffmpeg",
+                    "-y",
+                    "-loglevel",
+                    "error",
+                    "-i",
+                    str(source),
+                    "-b:a",
+                    "128k",
+                    str(output),
+                ],
+                check=True,
+            )
+
+
+class ElevenLabsVoiceProvider:
+    def __init__(self, settings: Settings):
+        if not settings.elevenlabs_api_key:
+            raise RuntimeError("ELEVENLABS_API_KEY manque")
+        self.api_key = settings.elevenlabs_api_key
+        self.voice_id = settings.elevenlabs_voice_id
+        self.model = settings.elevenlabs_model
+        self.style = settings.elevenlabs_style
+
+    def synthesize(self, text: str, voice: str, output: Path, style: str = "") -> None:
+        del voice, style
+        response = httpx.post(
+            f"https://api.elevenlabs.io/v1/text-to-speech/{self.voice_id}",
+            params={"output_format": "mp3_44100_128"},
+            headers={"xi-api-key": self.api_key, "Content-Type": "application/json"},
+            json={
+                "text": text,
+                "model_id": self.model,
+                "voice_settings": {
+                    "stability": 0.5,
+                    "similarity_boost": 0.75,
+                    "style": self.style,
+                    "use_speaker_boost": True,
+                },
+            },
+            timeout=120,
+        )
+        response.raise_for_status()
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_bytes(response.content)
 
 
 def editorial_provider(settings: Settings) -> EditorialProvider:
@@ -228,9 +292,13 @@ def editorial_provider(settings: Settings) -> EditorialProvider:
 
 
 def voice_provider(settings: Settings) -> VoiceProvider:
+    if settings.tts_provider == "elevenlabs":
+        return ElevenLabsVoiceProvider(settings)
     if settings.tts_provider == "gemini":
         return GeminiVoiceProvider(settings)
-    return MockVoiceProvider()
+    if settings.tts_provider == "mock":
+        return MockVoiceProvider()
+    raise RuntimeError(f"Provider vocal inconnu : {settings.tts_provider}")
 
 
 def content_hash(value: str) -> str:

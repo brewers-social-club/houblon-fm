@@ -118,6 +118,15 @@ def voice_queue(maximum: int = typer.Option(3, "--max")):
 
 
 @app.command()
+def revoice(episode_id: int):
+    """Revocalise une émission existante avec le fournisseur TTS configuré."""
+    settings, db, _, audio = services()
+    path = audio.produce(episode_id)
+    Publisher(settings, db).publish()
+    typer.echo(f"Épisode #{episode_id} revocalisé : {path}")
+
+
+@app.command()
 def say(text: str, character: str = "presenter"):
     settings, _, _, _ = services()
     profile = settings.characters[character]
