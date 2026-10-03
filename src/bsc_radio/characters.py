@@ -58,11 +58,16 @@ def character_voice(profile: dict[str, Any], provider: str, fallback: str = "") 
 
 
 def canonicalize_script(
-    lines: list[dict[str, Any]], characters: dict[str, Any]
+    lines: list[dict[str, Any]],
+    characters: dict[str, Any],
+    allowed_roles: list[str] | None = None,
 ) -> list[dict[str, Any]]:
     canonical: list[dict[str, Any]] = []
+    allowed = [role for role in (allowed_roles or []) if role in characters]
     for line in lines:
         role, _ = resolve_character(characters, line.get("character"))
+        if allowed and role not in allowed:
+            role = allowed[0]
         normalized = dict(line)
         normalized["character"] = role
         delivery = normalized.get("delivery", [])

@@ -208,6 +208,11 @@ def test_feedback_form_redirects_to_thanks_while_api_stays_json(tmp_path: Path):
     )
     assert api_response.status_code == 200
     assert api_response.json()["ok"] is True
+    duplicate_response = client.post(
+        "/api/feedback", data={"message": "  Une autre remarque.  "}
+    )
+    assert duplicate_response.json()["duplicate"] is True
+    assert duplicate_response.json()["id"] == api_response.json()["id"]
 
     rows = Database(cfg.database).all("SELECT rating,message FROM feedback ORDER BY id")
     assert [(row["rating"], row["message"]) for row in rows] == [

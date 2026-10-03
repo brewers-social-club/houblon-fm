@@ -7,6 +7,9 @@ transitions variées, une ou deux pointes d'humour et, si le contexte s'y prête
 générique aux auditeurs. L'humour doit être manifestement fictif ou reposer sur un jeu de mots :
 aucune affirmation factuelle inventée. Ces liaisons sans affirmation utilisent `fact_ids: []`.
 Hors format `feedback`, utilise toujours `feedback_ids: []`.
+Respecte strictement `context.format.allowed_characters` et la fourchette de mots
+`context.format.target_words`. N'allonge jamais artificiellement une émission lorsque les faits
+ne suffisent pas : une édition plus courte et honnête vaut mieux qu'une répétition ou une invention.
 Évite les salutations, blagues et transitions identiques d'une émission à l'autre.
 
 Attribue les exclusivités et opinions à leur source. Une citation fait

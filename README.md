@@ -132,6 +132,14 @@ Sans avis en attente, le run échoue immédiatement avec un message explicite. L
 redirige vers `/merci-avis.html` après envoi ; les clients API sans redirection continuent de
 recevoir une réponse JSON.
 
+Les formats éditoriaux appliquent leur propre routage. `journal`, `headlines` et `week` couvrent
+l'actualité générale ; un même fait peut être traité sous plusieurs formats mais n'est pas repris
+dans deux épisodes du même format. `awards` exige des résultats de concours. `portrait`, `recipe`,
+`style` et `glossary` sélectionnent un corpus cohérent issu d'un seul article et refusent de
+produire si aucun contenu ne correspond. Les rôles autorisés, la fraîcheur et la durée cible de
+`config/schedule.yaml` sont transmis au modèle ; tout rôle hors casting est ramené au casting du
+format.
+
 Les sources peuvent aussi être rangées dans `config/sources.d/*.yaml`. Par défaut,
 `item_max_age_days: null` collecte tout l'historique daté exposé par les flux. Une limite peut
 être réactivée globalement dans `config/radio.yaml` ou par source avec `max_age_days`. Pour les

@@ -161,13 +161,25 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     ):
         if len(message.strip()) < 3:
             raise HTTPException(400, "Message trop court")
-        identifier = db.execute(
-            "INSERT INTO feedback(user_id,rating,message) VALUES(?,?,?)",
-            (user["id"] if user else None, rating, message.strip()),
+        normalized_message = message.strip()
+        duplicate = db.one(
+            """SELECT id FROM feedback
+            WHERE lower(trim(message))=lower(?)
+            AND created_at >= datetime('now','-10 minutes')
+            ORDER BY id DESC LIMIT 1""",
+            (normalized_message,),
+        )
+        identifier = (
+            int(duplicate["id"])
+            if duplicate
+            else db.execute(
+                "INSERT INTO feedback(user_id,rating,message) VALUES(?,?,?)",
+                (user["id"] if user else None, rating, normalized_message),
+            )
         )
         if redirect_to == "/merci-avis.html":
             return RedirectResponse(redirect_to, status_code=303)
-        return {"ok": True, "id": identifier}
+        return {"ok": True, "id": identifier, "duplicate": bool(duplicate)}
 
     @app.get("/api/replays")
     def replays(user=Depends(required_user)):

@@ -13,6 +13,97 @@ from .config import Settings
 from .db import Database
 from .providers import EditorialProvider
 
+FORMAT_KEYWORDS: dict[str, tuple[str, ...]] = {
+    "awards": (
+        "award",
+        "classement",
+        "concours",
+        "gagn",
+        "laureat",
+        "medaille",
+        "palmares",
+        "grand prix",
+        "recompens",
+        "trophee",
+        "winner",
+    ),
+    "portrait": (
+        "brewery",
+        "fonde",
+        "histoire",
+        "microbrasserie",
+        "portrait",
+        "taproom",
+        "visite",
+    ),
+    "recipe": (
+        "brassage",
+        "dry hop",
+        "empatage",
+        "fermentation",
+        "houblon",
+        "ingredient",
+        "levure",
+        "malt",
+        "recette",
+        "temperature",
+    ),
+    "style": (
+        "ale",
+        "amertume",
+        "arome",
+        "biere de style",
+        "blonde",
+        "brune",
+        "gueuze",
+        "ipa",
+        "lager",
+        "lambic",
+        "neipa",
+        "pils",
+        "saison",
+        "stout",
+    ),
+    "glossary": (
+        "attenuation",
+        "densite",
+        "dry hop",
+        "empatage",
+        "fermentation",
+        "ibu",
+        "levure",
+        "malt",
+        "moût",
+        "mout",
+        "refermentation",
+        "srm",
+        "temperature",
+    ),
+}
+
+FORMAT_ANCHORS: dict[str, tuple[str, ...]] = {
+    "awards": FORMAT_KEYWORDS["awards"],
+    "portrait": ("brewery", "fonde", "histoire", "portrait", "taproom", "visite"),
+    "recipe": ("empatage", "ingredient", "recette"),
+    "style": (
+        "biere de style",
+        "gueuze",
+        "ipa",
+        "lager",
+        "lambic",
+        "neipa",
+        "pils",
+        "saison",
+        "stout",
+    ),
+    "glossary": FORMAT_KEYWORDS["glossary"],
+}
+
+
+def _searchable(value: object) -> str:
+    normalized = unicodedata.normalize("NFKD", str(value or ""))
+    return normalized.encode("ascii", "ignore").decode().casefold()
+
 
 def slugify(value: str) -> str:
     normalized = unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode().lower()
@@ -146,13 +237,16 @@ class EditorialPipeline:
                 )
         return len(groups)
 
-    def facts_for_episode(self, hours: int = 48, limit: int = 30) -> list[dict[str, Any]]:
+    def facts_for_episode(
+        self, hours: int = 48, limit: int = 30, fmt: str | None = None
+    ) -> list[dict[str, Any]]:
         threshold = (dt.datetime.now(dt.UTC) - dt.timedelta(hours=hours)).isoformat()
         return [
             dict(row)
             for row in self.db.all(
                 """WITH eligible AS (
                     SELECT DISTINCT f.*, i.source_id,
+                        t.title AS topic_title, t.summary AS topic_summary,
                         ROW_NUMBER() OVER (
                             PARTITION BY i.source_id
                             ORDER BY f.reliability DESC, f.created_at DESC
@@ -169,25 +263,87 @@ class EditorialPipeline:
                         JOIN json_each(used_sentence.fact_ids_json) used_fact
                         WHERE CAST(used_fact.value AS INTEGER)=f.id
                         AND used_episode.status!='rejected'
+                        AND (? IS NULL OR used_episode.format=?)
                     )
                 )
                 SELECT * FROM eligible
                 ORDER BY source_rank, reliability DESC, source_id, created_at DESC
                 LIMIT ?""",
-                (threshold, limit),
+                (threshold, fmt, fmt, limit),
             )
         ]
 
+    def facts_for_format(self, fmt: str, hours: int, limit: int = 30) -> list[dict[str, Any]]:
+        schedule = self.settings.schedule.get("formats", {}).get(fmt, {})
+        effective_hours = max(hours, 720) if not schedule.get("fresh", True) else hours
+        candidates = self.facts_for_episode(effective_hours, limit=150, fmt=fmt)
+        keywords = FORMAT_KEYWORDS.get(fmt)
+        if not keywords:
+            return candidates[:limit]
+
+        scored: list[tuple[int, dict[str, Any]]] = []
+        for fact in candidates:
+            haystack = _searchable(
+                " ".join(
+                    str(fact.get(field, ""))
+                    for field in ("statement", "source_name", "topic_title", "topic_summary")
+                )
+            )
+            score = sum(1 for keyword in keywords if _searchable(keyword) in haystack)
+            anchors = FORMAT_ANCHORS.get(fmt, keywords)
+            if score and any(_searchable(keyword) in haystack for keyword in anchors):
+                scored.append((score, fact))
+        if not scored:
+            label = schedule.get("label", fmt)
+            raise ValueError(
+                f"Aucun fait adapté au format « {label} » sur cette période. "
+                "Le format refuse de recycler une actualité sans rapport."
+            )
+        if fmt in {"portrait", "recipe", "style", "glossary"}:
+            group_scores: dict[int, set[str]] = {}
+            group_peak: dict[int, int] = {}
+            for score, fact in scored:
+                item_id = int(fact["item_id"])
+                haystack = _searchable(
+                    " ".join(
+                        str(fact.get(field, ""))
+                        for field in ("statement", "source_name", "topic_title", "topic_summary")
+                    )
+                )
+                group_scores.setdefault(item_id, set()).update(
+                    keyword for keyword in keywords if _searchable(keyword) in haystack
+                )
+                group_peak[item_id] = max(group_peak.get(item_id, 0), score)
+            selected_item = max(
+                group_scores,
+                key=lambda item: (len(group_scores[item]), group_peak[item], -item),
+            )
+            return [fact for _, fact in scored if int(fact["item_id"]) == selected_item][:limit]
+        return [fact for _, fact in sorted(scored, key=lambda pair: -pair[0])][:limit]
+
     def write_episode(self, fmt: str, hours: int = 48, title: str | None = None) -> int:
-        facts = self.facts_for_episode(hours)
+        facts = self.facts_for_format(fmt, hours)
         if not facts:
             raise ValueError(
                 "Aucun fait inédit disponible pour cette période. "
                 "Collectez de nouvelles sources ou augmentez --hours."
             )
         context = self._context()
+        format_config = dict(self.settings.schedule.get("formats", {}).get(fmt, {}))
+        min_minutes = float(format_config.get("min_minutes", 1))
+        max_minutes = float(format_config.get("max_minutes", min_minutes + 1))
+        allowed_roles = list(format_config.get("voices", ["presenter"]))
+        context["format"] = {
+            "id": fmt,
+            "label": format_config.get("label", fmt.title()),
+            "fresh": bool(format_config.get("fresh", True)),
+            "allowed_characters": allowed_roles,
+            "target_words": [round(min_minutes * 135), round(max_minutes * 135)],
+        }
         script = canonicalize_script(
-            self.provider.write(fmt, facts, context), self.settings.characters
+            self.provider.write(fmt, facts, context),
+            self.settings.characters,
+            allowed_roles=allowed_roles,
         )
         return self._persist_episode(fmt, script, context, title)
 
@@ -215,6 +371,18 @@ class EditorialPipeline:
         ]
         context = self._context()
         context["feedback_count"] = len(material)
+        format_config = dict(self.settings.schedule.get("formats", {}).get("feedback", {}))
+        allowed_roles = list(format_config.get("voices", ["audience", "presenter"]))
+        context["format"] = {
+            "id": "feedback",
+            "label": format_config.get("label", "Le Courrier des auditeurs"),
+            "fresh": False,
+            "allowed_characters": allowed_roles,
+            "target_words": [
+                round(float(format_config.get("min_minutes", 1)) * 135),
+                round(float(format_config.get("max_minutes", 2)) * 135),
+            ],
+        }
         raw_script = self.provider.write("feedback", material, context)
         for line in raw_script:
             referenced = line.get("feedback_ids") or line.get("fact_ids") or []
@@ -228,7 +396,9 @@ class EditorialPipeline:
                     valid_references.append(identifier)
             line["feedback_ids"] = valid_references
             line["fact_ids"] = []
-        script = canonicalize_script(raw_script, self.settings.characters)
+        script = canonicalize_script(
+            raw_script, self.settings.characters, allowed_roles=allowed_roles
+        )
         return self._persist_episode("feedback", script, context, title)
 
     def verify_episode(self, episode_id: int) -> dict[str, Any]:
