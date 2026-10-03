@@ -322,6 +322,7 @@ def test_nginx_delegates_admin_authentication_to_application():
     config = (root / "deploy/nginx.conf").read_text(encoding="utf-8")
     example = (root / ".env.example").read_text(encoding="utf-8")
     assert "auth_basic" not in config
+    assert "absolute_redirect off;" in config
     assert "RADIO_ADMIN_LOGIN=admin" in example
 
 
