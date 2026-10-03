@@ -120,6 +120,28 @@ chaque épisode. `min_content_chars` adapte le seuil aux formats courts, tandis 
 durées, saisons, numéros, images et catégories disponibles dans le flux sont conservés dans
 `item.metadata_json`, sans télécharger les MP3.
 
+### Réseaux sociaux et veille Google
+
+`radio collect` accepte aussi les types `youtube`, `facebook`, `instagram` et
+`google_grounded`. Des modèles désactivés se trouvent dans
+`config/sources.d/social.example.yaml`.
+
+- **YouTube** : sans clé, le collecteur tente le flux public de la chaîne pour les dernières
+  vidéos, mais YouTube peut ne pas l'exposer. `YOUTUBE_API_KEY` utilise l'API Data officielle,
+  pagine la playlist des publications et importe l'historique exposé par la chaîne
+  (`max_pages`, 50 vidéos par page) ; c'est le mode fiable recommandé.
+- **Facebook** : nécessite `page_id` et `META_ACCESS_TOKEN`. L'API Graph ne donne accès qu'aux
+  Pages et publications autorisées par le jeton ; aucune session web n'est scrapée.
+- **Instagram** : nécessite `ig_user_id` et le même `META_ACCESS_TOKEN`. L'API officielle cible
+  les comptes professionnels/créateurs reliés et autorisés, pas tous les comptes publics.
+- **Google** : `google_grounded` utilise `GEMINI_API_KEY` et le Grounding with Google Search pour
+  produire une veille synthétique accompagnée de citations. Ce n'est pas l'encart « Aperçu IA »
+  de la page Google — celui-ci n'a pas d'API publique — mais son équivalent officiel exploitable.
+
+Les appels authentifiés placent les clés dans des en-têtes HTTP afin qu'elles ne finissent ni
+dans les URL ni dans les logs. `META_GRAPH_VERSION` et `GEMINI_SEARCH_MODEL` permettent de faire
+évoluer les versions sans modifier le code.
+
 ## Habillage et direct vivant
 
 `config/antenna.yaml` décrit une horloge d'antenne et les éléments générés par ElevenLabs :

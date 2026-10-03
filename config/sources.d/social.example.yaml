@@ -1,0 +1,44 @@
+# Exemples désactivés : renseigner les identifiants puis passer enabled à true.
+sources:
+  - id: youtube-exemple
+    name: Chaîne YouTube exemple
+    kind: youtube
+    url: https://www.youtube.com/channel/UC_RENSEIGNER
+    channel_id: UC_RENSEIGNER
+    enabled: false
+    station: brasserie
+    history: all
+    max_pages: 20
+    min_content_chars: 20
+
+  - id: facebook-exemple
+    name: Page Facebook exemple
+    kind: facebook
+    url: https://www.facebook.com/PAGE_RENSEIGNER
+    page_id: PAGE_ID_RENSEIGNER
+    enabled: false
+    station: brasserie
+    history: all
+    max_pages: 10
+    min_content_chars: 20
+
+  - id: instagram-exemple
+    name: Compte Instagram exemple
+    kind: instagram
+    url: https://www.instagram.com/COMPTE_RENSEIGNER/
+    ig_user_id: IG_USER_ID_RENSEIGNER
+    enabled: false
+    station: brasserie
+    history: all
+    max_pages: 10
+    min_content_chars: 20
+
+  - id: veille-google-biere
+    name: Veille Google bière
+    kind: google_grounded
+    url: https://www.google.com/search?q=actualites+biere+brasserie+France
+    query: actualités bière et brasseries en France
+    enabled: false
+    station: brasserie
+    refresh_existing: true
+    min_content_chars: 80

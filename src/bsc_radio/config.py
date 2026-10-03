@@ -33,6 +33,10 @@ class Settings:
     session_secret: str
     anthropic_api_key: str
     gemini_api_key: str
+    gemini_search_model: str
+    youtube_api_key: str
+    meta_access_token: str
+    meta_graph_version: str
     elevenlabs_api_key: str
     elevenlabs_voice_id: str
     elevenlabs_model: str
@@ -72,6 +76,10 @@ class Settings:
             session_secret=os.getenv("RADIO_SESSION_SECRET", "development-only"),
             anthropic_api_key=os.getenv("ANTHROPIC_API_KEY", ""),
             gemini_api_key=os.getenv("GEMINI_API_KEY", ""),
+            gemini_search_model=os.getenv("GEMINI_SEARCH_MODEL", "gemini-2.5-flash"),
+            youtube_api_key=os.getenv("YOUTUBE_API_KEY", ""),
+            meta_access_token=os.getenv("META_ACCESS_TOKEN", ""),
+            meta_graph_version=os.getenv("META_GRAPH_VERSION", "v24.0"),
             elevenlabs_api_key=os.getenv("ELEVENLABS_API_KEY", ""),
             elevenlabs_voice_id=os.getenv("ELEVENLABS_VOICE_ID", "pNInz6obpgDQGcFmaJgB"),
             elevenlabs_model=os.getenv("ELEVENLABS_MODEL", "eleven_turbo_v2_5"),
