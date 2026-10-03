@@ -9,7 +9,7 @@ def test_database_migrations_are_idempotent(tmp_path: Path):
     db = Database(settings(tmp_path).database)
     db.migrate()
     db.migrate()
-    assert db.one("SELECT COUNT(*) count FROM schema_migration")["count"] == 2
+    assert db.one("SELECT COUNT(*) count FROM schema_migration")["count"] == 3
     assert "delivery_json" in {
         row["name"] for row in db.all("PRAGMA table_info(sentence)")
     }

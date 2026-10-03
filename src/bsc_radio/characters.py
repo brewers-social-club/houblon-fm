@@ -71,6 +71,9 @@ def canonicalize_script(
         normalized["delivery"] = [
             str(value) for value in delivery if str(value) in DELIVERY_TAGS
         ][:2]
+        for field in ("fact_ids", "feedback_ids"):
+            values = normalized.get(field, [])
+            normalized[field] = [int(value) for value in values if str(value).isdigit()]
         canonical.append(normalized)
     return canonical
 

@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Annotated
 
 from fastapi import Cookie, Depends, FastAPI, Form, HTTPException, Request, Response
-from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, RedirectResponse
 
 from .admin_api import build_admin_router
 from .antenna import AntennaClock
@@ -156,6 +156,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     def feedback(
         message: Annotated[str, Form()],
         rating: Annotated[int | None, Form()] = None,
+        redirect_to: Annotated[str | None, Form()] = None,
         user=Depends(current_user),
     ):
         if len(message.strip()) < 3:
@@ -164,6 +165,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "INSERT INTO feedback(user_id,rating,message) VALUES(?,?,?)",
             (user["id"] if user else None, rating, message.strip()),
         )
+        if redirect_to == "/merci-avis.html":
+            return RedirectResponse(redirect_to, status_code=303)
         return {"ok": True, "id": identifier}
 
     @app.get("/api/replays")

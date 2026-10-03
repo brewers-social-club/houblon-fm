@@ -53,6 +53,53 @@ def test_extract_topic_write_verify(tmp_path: Path):
     assert any(json.loads(row["delivery_json"]) == ["warm"] for row in stored)
 
 
+def test_feedback_episode_uses_pending_messages_and_marks_only_referenced_ones(tmp_path: Path):
+    cfg = settings(tmp_path)
+    db = Database(cfg.database)
+    db.migrate()
+    first = db.execute(
+        "INSERT INTO feedback(rating,message) VALUES(?,?)",
+        (5, "J'aime les explications techniques et les dialogues."),
+    )
+    second = db.execute(
+        "INSERT INTO feedback(message) VALUES(?)",
+        ("Pourriez-vous parler davantage des levures ?",),
+    )
+    pipeline = EditorialPipeline(cfg, db, MockEditorialProvider())
+
+    episode_id = pipeline.write_feedback_episode(title="Le courrier test")
+    episode = db.one("SELECT format FROM episode WHERE id=?", (episode_id,))
+    assert episode["format"] == "feedback"
+    sentences = db.all(
+        "SELECT fact_ids_json,feedback_ids_json FROM sentence WHERE episode_id=?", (episode_id,)
+    )
+    assert all(json.loads(row["fact_ids_json"]) == [] for row in sentences)
+    referenced = {
+        identifier
+        for row in sentences
+        for identifier in json.loads(row["feedback_ids_json"])
+    }
+    assert referenced == {first, second}
+
+    result = pipeline.verify_episode(episode_id)
+    assert result["status"] == "verified"
+    used = db.all("SELECT id,status,episode_id FROM feedback ORDER BY id")
+    assert [(row["id"], row["status"], row["episode_id"]) for row in used] == [
+        (first, "used", episode_id),
+        (second, "used", episode_id),
+    ]
+
+
+def test_feedback_episode_fails_fast_without_pending_message(tmp_path: Path):
+    cfg = settings(tmp_path)
+    db = Database(cfg.database)
+    db.migrate()
+    pipeline = EditorialPipeline(cfg, db, MockEditorialProvider())
+
+    with pytest.raises(ValueError, match="Aucun avis en attente"):
+        pipeline.write_feedback_episode()
+
+
 def test_does_not_reuse_facts_already_reserved_by_an_episode(tmp_path: Path):
     _, _, pipeline = seeded(tmp_path)
     pipeline.extract_pending()

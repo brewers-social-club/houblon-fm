@@ -25,6 +25,68 @@ class EditorialPipeline:
     db: Database
     provider: EditorialProvider
 
+    def _context(self) -> dict[str, Any]:
+        radio = self.settings.radio
+        return {
+            "date": dt.datetime.now(dt.UTC).isoformat(),
+            "disclosure": radio["ai_disclosure"],
+            "health_notice": radio["health_notice"],
+            "characters": self.settings.characters,
+            "law": "Information objective. Aucune incitation, réussite, fête ou ciblage de mineurs.",
+            "antenna": {
+                "station": radio["name"],
+                "tone": "radio vivante, chaleureuse, complice et légèrement impertinente",
+                "dedication": "remercier ponctuellement les auditeurs et les métiers du brassage",
+            },
+        }
+
+    def _persist_episode(
+        self, fmt: str, script: list[dict[str, Any]], context: dict[str, Any], title: str | None
+    ) -> int:
+        episode_title = title or self.settings.schedule["formats"].get(fmt, {}).get(
+            "label", fmt.title()
+        )
+        timestamp = dt.datetime.now(dt.UTC).strftime("%Y%m%d-%H%M%S")
+        slug = f"{slugify(episode_title)}-{timestamp}"
+        prompt_material = json.dumps(context, sort_keys=True)
+        for path in sorted((self.settings.root / "prompts").glob("*.md")):
+            prompt_material += path.name + path.read_text(encoding="utf-8")
+        prompt_hash = hashlib.sha256(prompt_material.encode()).hexdigest()
+        with self.db.transaction() as connection:
+            cursor = connection.execute(
+                """INSERT INTO episode(slug,title,format,station,status,summary,script_json,prompt_hash)
+                VALUES(?,?,?,?,?,?,?,?)""",
+                (
+                    slug,
+                    episode_title,
+                    fmt,
+                    "brasserie",
+                    "draft",
+                    "Une émission brassicole sourcée et vérifiée.",
+                    json.dumps(script, ensure_ascii=False),
+                    prompt_hash,
+                ),
+            )
+            episode_id = cursor.lastrowid
+            connection.executemany(
+                """INSERT INTO sentence(
+                episode_id,position,character,text,delivery_json,fact_ids_json,feedback_ids_json
+                ) VALUES(?,?,?,?,?,?,?)""",
+                [
+                    (
+                        episode_id,
+                        pos,
+                        line["character"],
+                        line["text"],
+                        json.dumps(line.get("delivery", [])),
+                        json.dumps(line.get("fact_ids", [])),
+                        json.dumps(line.get("feedback_ids", [])),
+                    )
+                    for pos, line in enumerate(script)
+                ],
+            )
+        return int(episode_id)
+
     def extract_pending(self, limit: int = 25) -> int:
         items = self.db.all(
             """SELECT i.*, s.name source_name FROM item i JOIN source s ON s.id=i.source_id
@@ -110,7 +172,7 @@ class EditorialPipeline:
                     )
                 )
                 SELECT * FROM eligible
-                ORDER BY source_rank, reliability DESC, created_at DESC
+                ORDER BY source_rank, reliability DESC, source_id, created_at DESC
                 LIMIT ?""",
                 (threshold, limit),
             )
@@ -123,66 +185,56 @@ class EditorialPipeline:
                 "Aucun fait inédit disponible pour cette période. "
                 "Collectez de nouvelles sources ou augmentez --hours."
             )
-        radio = self.settings.radio
-        context = {
-            "date": dt.datetime.now(dt.UTC).isoformat(),
-            "disclosure": radio["ai_disclosure"],
-            "health_notice": radio["health_notice"],
-            "characters": self.settings.characters,
-            "law": "Information objective. Aucune incitation, réussite, fête ou ciblage de mineurs.",
-            "antenna": {
-                "station": radio["name"],
-                "tone": "radio vivante, chaleureuse, complice et légèrement impertinente",
-                "dedication": "remercier ponctuellement les auditeurs et les métiers du brassage",
-            },
-        }
+        context = self._context()
         script = canonicalize_script(
             self.provider.write(fmt, facts, context), self.settings.characters
         )
-        episode_title = title or self.settings.schedule["formats"].get(fmt, {}).get(
-            "label", fmt.title()
+        return self._persist_episode(fmt, script, context, title)
+
+    def write_feedback_episode(self, title: str | None = None, limit: int = 20) -> int:
+        rows = self.db.all(
+            """SELECT id,rating,message,created_at FROM feedback
+            WHERE status='pending' ORDER BY created_at,id LIMIT ?""",
+            (limit,),
         )
-        timestamp = dt.datetime.now(dt.UTC).strftime("%Y%m%d-%H%M%S")
-        slug = f"{slugify(episode_title)}-{timestamp}"
-        prompt_material = json.dumps(context, sort_keys=True)
-        for path in sorted((self.settings.root / "prompts").glob("*.md")):
-            prompt_material += path.name + path.read_text(encoding="utf-8")
-        prompt_hash = hashlib.sha256(prompt_material.encode()).hexdigest()
-        with self.db.transaction() as connection:
-            cursor = connection.execute(
-                """INSERT INTO episode(slug,title,format,station,status,summary,script_json,prompt_hash)
-                VALUES(?,?,?,?,?,?,?,?)""",
-                (
-                    slug,
-                    episode_title,
-                    fmt,
-                    "brasserie",
-                    "draft",
-                    "Une émission brassicole sourcée et vérifiée.",
-                    json.dumps(script, ensure_ascii=False),
-                    prompt_hash,
-                ),
-            )
-            episode_id = cursor.lastrowid
-            connection.executemany(
-                """INSERT INTO sentence(
-                episode_id,position,character,text,delivery_json,fact_ids_json
-                ) VALUES(?,?,?,?,?,?)""",
-                [
-                    (
-                        episode_id,
-                        pos,
-                        line["character"],
-                        line["text"],
-                        json.dumps(line.get("delivery", [])),
-                        json.dumps(line.get("fact_ids", [])),
-                    )
-                    for pos, line in enumerate(script)
-                ],
-            )
-        return int(episode_id)
+        if not rows:
+            raise ValueError("Aucun avis en attente pour le Courrier des auditeurs.")
+        feedback_ids = {int(row["id"]) for row in rows}
+        material = [
+            {
+                "id": int(row["id"]),
+                "statement": row["message"],
+                "type": "listener_feedback",
+                "rating": row["rating"],
+                "source_name": "Auditeur anonyme",
+                "source_url": f"{self.settings.site_url}/avis.html",
+                "source_date": row["created_at"],
+                "reliability": 1.0,
+            }
+            for row in rows
+        ]
+        context = self._context()
+        context["feedback_count"] = len(material)
+        raw_script = self.provider.write("feedback", material, context)
+        for line in raw_script:
+            referenced = line.get("feedback_ids") or line.get("fact_ids") or []
+            valid_references: list[int] = []
+            for value in referenced if isinstance(referenced, list) else []:
+                try:
+                    identifier = int(value)
+                except (TypeError, ValueError):
+                    continue
+                if identifier in feedback_ids and identifier not in valid_references:
+                    valid_references.append(identifier)
+            line["feedback_ids"] = valid_references
+            line["fact_ids"] = []
+        script = canonicalize_script(raw_script, self.settings.characters)
+        return self._persist_episode("feedback", script, context, title)
 
     def verify_episode(self, episode_id: int) -> dict[str, Any]:
+        episode = self.db.one("SELECT format FROM episode WHERE id=?", (episode_id,))
+        if not episode:
+            raise ValueError(f"Épisode #{episode_id} introuvable")
         sentences = self.db.all(
             "SELECT * FROM sentence WHERE episode_id=? ORDER BY position", (episode_id,)
         )
@@ -199,6 +251,26 @@ class EditorialPipeline:
                 if ids
                 else []
             )
+            feedback_ids = json.loads(sentence["feedback_ids_json"] or "[]")
+            if feedback_ids:
+                placeholders = ",".join("?" for _ in feedback_ids)
+                feedback_rows = self.db.all(
+                    f"SELECT id,rating,message,created_at FROM feedback WHERE id IN ({placeholders})",
+                    tuple(feedback_ids),
+                )
+                facts.extend(
+                    {
+                        "id": int(row["id"]),
+                        "statement": row["message"],
+                        "type": "listener_feedback",
+                        "rating": row["rating"],
+                        "source_name": "Auditeur anonyme",
+                        "source_url": f"{self.settings.site_url}/avis.html",
+                        "source_date": row["created_at"],
+                        "reliability": 1.0,
+                    }
+                    for row in feedback_rows
+                )
             result = self.provider.verify(sentence["text"], facts)
             verdict = result.get("verdict", "unsupported")
             text = sentence["text"]
@@ -223,7 +295,7 @@ class EditorialPipeline:
         with self.db.transaction() as connection:
             kept = list(
                 connection.execute(
-                    """SELECT character,text,delivery_json,fact_ids_json FROM sentence
+                    """SELECT character,text,delivery_json,fact_ids_json,feedback_ids_json FROM sentence
                     WHERE episode_id=? AND verdict!='deleted' ORDER BY position""",
                     (episode_id,),
                 )
@@ -234,6 +306,7 @@ class EditorialPipeline:
                     "text": row["text"],
                     "delivery": json.loads(row["delivery_json"] or "[]"),
                     "fact_ids": json.loads(row["fact_ids_json"]),
+                    "feedback_ids": json.loads(row["feedback_ids_json"] or "[]"),
                 }
                 for row in kept
             ]
@@ -246,4 +319,16 @@ class EditorialPipeline:
                     episode_id,
                 ),
             )
+            if status == "verified" and episode["format"] == "feedback":
+                used_ids = {
+                    feedback_id
+                    for row in kept
+                    for feedback_id in json.loads(row["feedback_ids_json"] or "[]")
+                }
+                if used_ids:
+                    placeholders = ",".join("?" for _ in used_ids)
+                    connection.execute(
+                        f"UPDATE feedback SET status='used',episode_id=? WHERE id IN ({placeholders})",
+                        (episode_id, *sorted(used_ids)),
+                    )
         return {"status": status, "sentences": len(sentences), "rejected": rejected, "ratio": ratio}

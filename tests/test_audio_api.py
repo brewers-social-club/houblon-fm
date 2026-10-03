@@ -187,6 +187,35 @@ def test_audio_validation_rejects_truncated_files(tmp_path: Path):
         raise AssertionError("Un MP3 tronqué doit être rejeté")
 
 
+def test_feedback_form_redirects_to_thanks_while_api_stays_json(tmp_path: Path):
+    cfg = settings(tmp_path)
+    client = TestClient(create_app(cfg))
+
+    browser_response = client.post(
+        "/api/feedback",
+        data={
+            "message": "Une émission très utile.",
+            "rating": "5",
+            "redirect_to": "/merci-avis.html",
+        },
+        follow_redirects=False,
+    )
+    assert browser_response.status_code == 303
+    assert browser_response.headers["location"] == "/merci-avis.html"
+
+    api_response = client.post(
+        "/api/feedback", data={"message": "Une autre remarque."}
+    )
+    assert api_response.status_code == 200
+    assert api_response.json()["ok"] is True
+
+    rows = Database(cfg.database).all("SELECT rating,message FROM feedback ORDER BY id")
+    assert [(row["rating"], row["message"]) for row in rows] == [
+        (5, "Une émission très utile."),
+        (None, "Une autre remarque."),
+    ]
+
+
 def test_character_names_aliases_and_provider_voices_are_resolved():
     characters = {
         "presenter": {

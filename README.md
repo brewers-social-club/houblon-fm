@@ -125,6 +125,13 @@ collectes/générations concurrentes. Chaque run publie un heartbeat SQLite tout
 une interruption clavier, fermeture SSH ou disparition du processus produit le statut
 `interrupted` au lieu de laisser `running` éternellement.
 
+Le format `feedback` est particulier : il ne collecte pas l'actualité et n'en extrait aucun fait.
+Il utilise uniquement les messages encore `pending` reçus depuis `/avis.html`, conserve leur
+provenance interne pendant la vérification, puis les marque `used` quand le script est validé.
+Sans avis en attente, le run échoue immédiatement avec un message explicite. Le formulaire public
+redirige vers `/merci-avis.html` après envoi ; les clients API sans redirection continuent de
+recevoir une réponse JSON.
+
 Les sources peuvent aussi être rangées dans `config/sources.d/*.yaml`. Par défaut,
 `item_max_age_days: null` collecte tout l'historique daté exposé par les flux. Une limite peut
 être réactivée globalement dans `config/radio.yaml` ou par source avec `max_age_days`. Pour les

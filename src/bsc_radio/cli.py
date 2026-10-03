@@ -188,29 +188,33 @@ def run(
             with log.stage("run.initialize", format=fmt, hours=hours, title=title):
                 editorial = EditorialPipeline(settings, db, editorial_provider(settings))
                 audio = AudioProducer(settings, db, voice_provider(settings))
-            if not skip_collect:
-                with log.stage("run.collect"):
-                    collection = Collector(settings, db, log).collect_all()
-                    log.info(
-                        "run.collect.summary",
-                        "Collecte terminée",
-                        items=collection["items"],
-                        failed_sources=collection["failed_sources"],
-                    )
-                    if collection["failed_sources"]:
-                        log.warning(
-                            "run.collect.partial",
-                            "Collecte partielle",
+            if fmt != "feedback":
+                if not skip_collect:
+                    with log.stage("run.collect"):
+                        collection = Collector(settings, db, log).collect_all()
+                        log.info(
+                            "run.collect.summary",
+                            "Collecte terminée",
+                            items=collection["items"],
                             failed_sources=collection["failed_sources"],
                         )
-            with log.stage("run.facts"):
-                extracted = editorial.extract_pending()
-                log.info("run.facts.summary", "Faits extraits", articles=extracted)
-            with log.stage("run.topics"):
-                topics_count = editorial.build_topics()
-                log.info("run.topics.summary", "Sujets créés", topics=topics_count)
+                        if collection["failed_sources"]:
+                            log.warning(
+                                "run.collect.partial",
+                                "Collecte partielle",
+                                failed_sources=collection["failed_sources"],
+                            )
+                with log.stage("run.facts"):
+                    extracted = editorial.extract_pending()
+                    log.info("run.facts.summary", "Faits extraits", articles=extracted)
+                with log.stage("run.topics"):
+                    topics_count = editorial.build_topics()
+                    log.info("run.topics.summary", "Sujets créés", topics=topics_count)
             with log.stage("run.write", format=fmt, hours=hours, title=title):
-                episode_id = editorial.write_episode(fmt, hours, title=title)
+                if fmt == "feedback":
+                    episode_id = editorial.write_feedback_episode(title=title)
+                else:
+                    episode_id = editorial.write_episode(fmt, hours, title=title)
                 log.info("run.write.created", "Épisode créé", episode_id=episode_id)
             result = _finish_episode(settings, db, editorial, audio, episode_id, log)
     except (KeyboardInterrupt, SystemExit) as exc:

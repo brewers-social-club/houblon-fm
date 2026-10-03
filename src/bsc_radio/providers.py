@@ -70,7 +70,13 @@ class MockEditorialProvider:
     ) -> list[dict[str, Any]]:
         disclosure = context["disclosure"]
         script = [
-            {"character": "presenter", "text": disclosure, "delivery": [], "fact_ids": []}
+            {
+                "character": "presenter",
+                "text": disclosure,
+                "delivery": [],
+                "fact_ids": [],
+                "feedback_ids": [],
+            }
         ]
         if not facts:
             return script + [
@@ -79,6 +85,7 @@ class MockEditorialProvider:
                     "text": "Aucune actualité vérifiée à signaler.",
                     "delivery": ["serious"],
                     "fact_ids": [],
+                    "feedback_ids": [],
                 }
             ]
         for fact in facts[:6]:
@@ -89,6 +96,7 @@ class MockEditorialProvider:
                     "text": f"Selon {source}, {fact['statement'].rstrip('.')}.",
                     "delivery": ["warm"],
                     "fact_ids": [fact["id"]],
+                    "feedback_ids": [],
                 }
             )
         script.append(
@@ -97,6 +105,7 @@ class MockEditorialProvider:
                 "text": context["health_notice"],
                 "delivery": [],
                 "fact_ids": [],
+                "feedback_ids": [],
             }
         )
         return script

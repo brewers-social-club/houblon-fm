@@ -56,6 +56,7 @@ CREATE TABLE IF NOT EXISTS sentence (
   id INTEGER PRIMARY KEY, episode_id INTEGER NOT NULL REFERENCES episode(id) ON DELETE CASCADE,
   position INTEGER NOT NULL, character TEXT NOT NULL, text TEXT NOT NULL,
   delivery_json TEXT NOT NULL DEFAULT '[]', fact_ids_json TEXT NOT NULL DEFAULT '[]',
+  feedback_ids_json TEXT NOT NULL DEFAULT '[]',
   verdict TEXT, verifier_note TEXT,
   UNIQUE(episode_id, position)
 );
@@ -162,8 +163,13 @@ class Database:
                 connection.execute(
                     "ALTER TABLE sentence ADD COLUMN delivery_json TEXT NOT NULL DEFAULT '[]'"
                 )
+            if "feedback_ids_json" not in sentence_columns:
+                connection.execute(
+                    "ALTER TABLE sentence ADD COLUMN feedback_ids_json TEXT NOT NULL DEFAULT '[]'"
+                )
             connection.execute("INSERT OR IGNORE INTO schema_migration(version) VALUES (1)")
             connection.execute("INSERT OR IGNORE INTO schema_migration(version) VALUES (2)")
+            connection.execute("INSERT OR IGNORE INTO schema_migration(version) VALUES (3)")
 
     @contextlib.contextmanager
     def transaction(self, immediate: bool = False) -> Iterator[sqlite3.Connection]:
