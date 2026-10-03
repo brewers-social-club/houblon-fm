@@ -324,7 +324,7 @@ def test_nginx_delegates_admin_authentication_to_application():
     assert "auth_basic" not in config
     assert "absolute_redirect off;" in config
     assert 'location = /admin {' in config
-    assert 'return 302 /admin/;' in config
+    assert 'try_files /admin/index.html =404;' in config
     assert 'Cache-Control "no-store"' in config
     assert "RADIO_ADMIN_LOGIN=admin" in example
 
