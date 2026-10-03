@@ -85,6 +85,7 @@ radio collect
 radio facts
 radio topics --hours 48
 radio run --fmt journal
+radio run --fmt journal --title "Samedi 3 octobre 2026" --hours 48
 radio episodes
 radio episodes --status failed
 radio resume 42
@@ -109,6 +110,11 @@ radio sidecar
 rotatif dans `data/logs/radio.jsonl` (5 Mio par fichier, avec 5 archives). `RADIO_LOG_LEVEL` accepte
 notamment `DEBUG`, `INFO`, `WARNING` ou `ERROR`. Les erreurs complètes restent dans le fichier,
 tandis que les clés, jetons, mots de passe et paramètres sensibles sont masqués.
+`--fmt` accepte uniquement un identifiant déclaré dans `config/schedule.yaml` (`journal`,
+`headlines`, `week`, etc.) ; `--title` personnalise le titre public. Un verrou empêche deux
+collectes/générations concurrentes. Chaque run publie un heartbeat SQLite toutes les 15 secondes :
+une interruption clavier, fermeture SSH ou disparition du processus produit le statut
+`interrupted` au lieu de laisser `running` éternellement.
 
 Les sources peuvent aussi être rangées dans `config/sources.d/*.yaml`. Par défaut,
 `item_max_age_days: null` collecte tout l'historique daté exposé par les flux. Une limite peut

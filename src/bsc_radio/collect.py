@@ -317,7 +317,8 @@ class Collector:
                 max_age = dt.timedelta(days=int(configured_max_age))
         inserted = skipped = 0
         skipped_reasons: Counter[str] = Counter()
-        for entry in feed.entries:
+        total_entries = len(feed.entries)
+        for entry_index, entry in enumerate(feed.entries, start=1):
             url = entry.get("link")
             published = _entry_date(entry)
             parsed_url = urllib.parse.urlparse(url or "")
@@ -352,7 +353,9 @@ class Collector:
                 )
             ).casefold()
             minimum_chars = int(source.get("min_content_chars", 120))
-            text = feed_text if content_mode == "feed" else ""
+            # En mode auto, un contenu RSS suffisamment riche évite une requête de page
+            # et son crawl-delay. Les podcasts exposent généralement toute leur description.
+            text = feed_text if content_mode in {"feed", "auto"} else ""
             page_error = None
             if content_mode != "feed" and len(text) < minimum_chars and self._allowed(url):
                 try:
@@ -428,6 +431,16 @@ class Collector:
                 ),
             )
             inserted += 1
+            if self.log and (entry_index % 25 == 0 or entry_index == total_entries):
+                self.log.info(
+                    "collect.source.progress",
+                    "Progression de la source",
+                    source=source["id"],
+                    processed=entry_index,
+                    total=total_entries,
+                    items=inserted,
+                    skipped=skipped,
+                )
         return inserted, skipped, dict(skipped_reasons)
 
     def _max_age(self, source: dict[str, Any]) -> dt.timedelta | None:

@@ -118,7 +118,9 @@ CREATE TABLE IF NOT EXISTS domain_watch (
 );
 CREATE TABLE IF NOT EXISTS pipeline_run (
   id INTEGER PRIMARY KEY, command TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'running',
-  started_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, finished_at TEXT, detail_json TEXT NOT NULL DEFAULT '{}'
+  started_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, finished_at TEXT,
+  heartbeat_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, pid INTEGER,
+  detail_json TEXT NOT NULL DEFAULT '{}'
 );
 CREATE TABLE IF NOT EXISTS kv (
   key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -142,6 +144,16 @@ class Database:
     def migrate(self) -> None:
         with self.connect() as connection:
             connection.executescript(SCHEMA)
+            columns = {
+                row["name"] for row in connection.execute("PRAGMA table_info(pipeline_run)")
+            }
+            if "heartbeat_at" not in columns:
+                connection.execute("ALTER TABLE pipeline_run ADD COLUMN heartbeat_at TEXT")
+                connection.execute(
+                    "UPDATE pipeline_run SET heartbeat_at=COALESCE(finished_at,started_at)"
+                )
+            if "pid" not in columns:
+                connection.execute("ALTER TABLE pipeline_run ADD COLUMN pid INTEGER")
             connection.execute("INSERT OR IGNORE INTO schema_migration(version) VALUES (1)")
 
     @contextlib.contextmanager

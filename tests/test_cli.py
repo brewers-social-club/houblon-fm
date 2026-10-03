@@ -54,6 +54,20 @@ def test_commands_are_visible_in_help():
     assert "antenna-status" in result.stdout
 
 
+def test_run_rejects_unknown_format_before_creating_a_pipeline_run(tmp_path: Path, monkeypatch):
+    cfg = settings(tmp_path)
+    db = Database(cfg.database)
+    db.migrate()
+    monkeypatch.setattr(cli.Settings, "load", lambda _root=None: cfg)
+
+    result = runner.invoke(cli.app, ["run", "--fmt", "samedi-03-10-2026"])
+
+    assert result.exit_code == 2
+    assert "format inconnu" in result.output
+    assert "journal" in result.output
+    assert db.one("SELECT COUNT(*) count FROM pipeline_run")["count"] == 0
+
+
 def test_say_resolves_display_name_and_provider_voice(tmp_path: Path, monkeypatch):
     cfg, db, editorial, audio, _ = draft_services(tmp_path)
     object.__setattr__(cfg, "tts_provider", "elevenlabs")

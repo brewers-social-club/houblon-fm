@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, Form, HTTPException, Query
 from .config import Settings
 from .db import Database
 from .episodes import delete_episode
-from .observability import tail_log
+from .observability import reconcile_orphaned_runs, tail_log
 from .publish import Publisher
 
 
@@ -342,6 +342,7 @@ def build_admin_router(
 
     @router.get("/operations")
     def operations():
+        reconcile_orphaned_runs(db)
         runs = []
         for row in db.all(
             "SELECT * FROM pipeline_run ORDER BY id DESC LIMIT 100"

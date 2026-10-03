@@ -14,7 +14,13 @@ from .db import Database
 from .editorial import EditorialPipeline
 from .episodes import delete_episode
 from .imaging import ImagingProducer
-from .observability import PipelineLog, redact, tail_log
+from .observability import (
+    PipelineLog,
+    pipeline_lock,
+    reconcile_orphaned_runs,
+    redact,
+    tail_log,
+)
 from .providers import editorial_provider, voice_provider
 from .publish import Publisher
 from .sidecar import create_app
@@ -124,7 +130,12 @@ def collect():
     db.migrate()
     log = PipelineLog(settings, db, "collect")
     try:
-        result = Collector(settings, db, log).collect_all()
+        with pipeline_lock(settings):
+            result = Collector(settings, db, log).collect_all()
+    except (KeyboardInterrupt, SystemExit) as exc:
+        log.interrupt(exc)
+        typer.echo("Collecte interrompue", err=True)
+        raise typer.Exit(130) from exc
     except Exception as exc:
         log.fail(exc)
         typer.echo(f"Échec de la collecte : {_safe_failure_message(exc)}", err=True)
@@ -154,42 +165,58 @@ def topics(hours: int = 48):
 
 
 @app.command()
-def run(fmt: str = "journal", hours: int = 48, skip_collect: bool = False):
+def run(
+    fmt: str = "journal",
+    hours: int = 48,
+    skip_collect: bool = False,
+    title: str | None = typer.Option(None, "--title", help="Titre public de l'émission"),
+):
     settings = Settings.load()
     settings.ensure_dirs()
     db = Database(settings.database)
     db.migrate()
+    available_formats = settings.schedule.get("formats", {})
+    if fmt not in available_formats:
+        allowed = ", ".join(sorted(available_formats))
+        raise typer.BadParameter(
+            f"format inconnu '{fmt}'. Formats disponibles : {allowed}", param_hint="--fmt"
+        )
     log = PipelineLog(settings, db, "run")
     episode_id = None
     try:
-        with log.stage("run.initialize", format=fmt, hours=hours):
-            editorial = EditorialPipeline(settings, db, editorial_provider(settings))
-            audio = AudioProducer(settings, db, voice_provider(settings))
-        if not skip_collect:
-            with log.stage("run.collect"):
-                collection = Collector(settings, db, log).collect_all()
-                log.info(
-                    "run.collect.summary",
-                    "Collecte terminée",
-                    items=collection["items"],
-                    failed_sources=collection["failed_sources"],
-                )
-                if collection["failed_sources"]:
-                    log.warning(
-                        "run.collect.partial",
-                        "Collecte partielle",
+        with pipeline_lock(settings):
+            with log.stage("run.initialize", format=fmt, hours=hours, title=title):
+                editorial = EditorialPipeline(settings, db, editorial_provider(settings))
+                audio = AudioProducer(settings, db, voice_provider(settings))
+            if not skip_collect:
+                with log.stage("run.collect"):
+                    collection = Collector(settings, db, log).collect_all()
+                    log.info(
+                        "run.collect.summary",
+                        "Collecte terminée",
+                        items=collection["items"],
                         failed_sources=collection["failed_sources"],
                     )
-        with log.stage("run.facts"):
-            extracted = editorial.extract_pending()
-            log.info("run.facts.summary", "Faits extraits", articles=extracted)
-        with log.stage("run.topics"):
-            topics_count = editorial.build_topics()
-            log.info("run.topics.summary", "Sujets créés", topics=topics_count)
-        with log.stage("run.write", format=fmt, hours=hours):
-            episode_id = editorial.write_episode(fmt, hours)
-            log.info("run.write.created", "Épisode créé", episode_id=episode_id)
-        result = _finish_episode(settings, db, editorial, audio, episode_id, log)
+                    if collection["failed_sources"]:
+                        log.warning(
+                            "run.collect.partial",
+                            "Collecte partielle",
+                            failed_sources=collection["failed_sources"],
+                        )
+            with log.stage("run.facts"):
+                extracted = editorial.extract_pending()
+                log.info("run.facts.summary", "Faits extraits", articles=extracted)
+            with log.stage("run.topics"):
+                topics_count = editorial.build_topics()
+                log.info("run.topics.summary", "Sujets créés", topics=topics_count)
+            with log.stage("run.write", format=fmt, hours=hours, title=title):
+                episode_id = editorial.write_episode(fmt, hours, title=title)
+                log.info("run.write.created", "Épisode créé", episode_id=episode_id)
+            result = _finish_episode(settings, db, editorial, audio, episode_id, log)
+    except (KeyboardInterrupt, SystemExit) as exc:
+        log.interrupt(exc, episode_id=episode_id)
+        typer.echo("Pipeline interrompu", err=True)
+        raise typer.Exit(130) from exc
     except Exception as exc:
         log.fail(exc, episode_id=episode_id)
         typer.echo(f"Échec du pipeline : {_safe_failure_message(exc)}", err=True)
@@ -222,6 +249,7 @@ def runs(limit: int = typer.Option(20, "--limit", min=1, max=500)):
     settings = Settings.load()
     db = Database(settings.database)
     db.migrate()
+    reconcile_orphaned_runs(db)
     for row in db.all(
         """SELECT id,command,status,started_at,finished_at,detail_json
         FROM pipeline_run ORDER BY id DESC LIMIT ?""",

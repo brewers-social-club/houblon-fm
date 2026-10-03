@@ -325,6 +325,50 @@ def test_podcast_can_import_full_history_from_feed_content(tmp_path, monkeypatch
     }
 
 
+def test_auto_mode_uses_rich_feed_content_without_scraping_article(tmp_path, monkeypatch):
+    cfg = settings(tmp_path)
+    db = Database(cfg.database)
+    db.migrate()
+    source = {
+        "id": "rich-feed",
+        "name": "Rich feed",
+        "kind": "rss",
+        "url": "https://feed.example.test/show",
+        "station": "degustation",
+        "enabled": True,
+        "min_interval_seconds": 15,
+    }
+    db.execute(
+        "INSERT INTO source(id,name,kind,url,station) VALUES(?,?,?,?,?)",
+        (source["id"], source["name"], source["kind"], source["url"], source["station"]),
+    )
+    parsed = SimpleNamespace(
+        entries=[
+            {
+                "link": "https://podcast.example.test/episode",
+                "published": "Mon, 01 Jan 2018 12:00:00 +0000",
+                "title": "Épisode riche",
+                "summary": "Description RSS suffisamment longue pour éviter le scraping. " * 5,
+            }
+        ],
+        bozo=False,
+    )
+    calls = []
+
+    def fake_get(url, **_kwargs):
+        calls.append(url)
+        return FakeResponse(content=b"rss", url=url)
+
+    monkeypatch.setattr(feedparser, "parse", lambda _content: parsed)
+    monkeypatch.setattr(httpx, "get", fake_get)
+    collector = Collector(cfg, db)
+    monkeypatch.setattr(collector, "_allowed", lambda _url: True)
+    monkeypatch.setattr(collector, "_effective_delay", lambda _url, delay: delay)
+
+    assert collector.collect_source(source) == (1, 0)
+    assert calls == [source["url"]]
+
+
 def test_robots_uses_radio_user_agent_and_parses_rules(tmp_path, monkeypatch):
     cfg = settings(tmp_path)
     db = Database(cfg.database)
