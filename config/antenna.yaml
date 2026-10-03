@@ -42,6 +42,20 @@ sound_effects:
       a rhythmic metallic rebound, fizzy stereo sweep and short warm bass impact,
       witty and polished, no voice, no reference to existing music.
     duration_seconds: 2.5
+  - id: cuve-en-pression
+    category: stingers
+    prompt: >-
+      Three-second professional craft radio transition, a rising pressure hiss from a brewery
+      tank, quick valve release, tight kick impact and bright stereo sparkle, bold but clean,
+      no voice, no reference to existing music.
+    duration_seconds: 3
+  - id: malt-croquant
+    category: stingers
+    prompt: >-
+      Two-second playful broadcast stinger built from crisp grain sounds, a short wooden click,
+      fizzy sweep and compact warm bass logo, polished French radio production, no voice,
+      no reference to existing music.
+    duration_seconds: 2
 
 spoken:
   - id: identite-principale
@@ -109,6 +123,35 @@ spoken:
       Ten-second playful radio comedy bed, soft marimba, elastic bass and a discreet comic
       punctuation at the end, modern and understated, no voice.
     bed_duration_seconds: 10
+  - id: identite-fut
+    category: station_ids
+    character: storyteller
+    text: >-
+      Houblon FM. On ouvre les sujets, pas les fûts sans autorisation.
+    bed_prompt: >-
+      Seven-second witty premium radio ident bed, warm vibraphone, soft brass punctuation,
+      subtle bubbling texture and room for a confident female voice, no voice.
+    bed_duration_seconds: 7
+  - id: blague-houblon
+    category: jokes
+    character: audience
+    text: >-
+      Le houblon voulait devenir influenceur. Il avait déjà l'amertume, le parfum et
+      beaucoup trop de cônes pour une seule photo de profil.
+    bed_prompt: >-
+      Ten-second cheeky radio comedy bed, bouncy bass, finger snaps and a tiny muted trumpet
+      response after the punchline, modern and restrained, no voice.
+    bed_duration_seconds: 10
+  - id: blague-recette
+    category: jokes
+    character: presenter
+    text: >-
+      Une recette de bière sans notes, c'est comme une réunion sans ordre du jour :
+      tout le monde improvise et quelqu'un finit toujours par accuser la levure.
+    bed_prompt: >-
+      Ten-second smart comedy radio bed, light pizzicato strings, brushed drums and a dry
+      final rimshot, warm broadcast mix, no voice.
+    bed_duration_seconds: 10
   - id: promo-sources
     category: promos
     character: storyteller
@@ -159,6 +202,26 @@ spoken:
       Twelve-second late-evening community radio bed, mellow electric piano, subtle analog
       pulse and a warm hopeful ending, intimate but not sentimental, no voice.
     bed_duration_seconds: 12
+  - id: dedicace-associations
+    category: dedications
+    character: presenter
+    text: >-
+      Dédicace aux associations, aux clubs et aux bénévoles qui montent des événements
+      avec trois rallonges, deux tables bancales et une énergie absolument déraisonnable.
+    bed_prompt: >-
+      Thirteen-second upbeat community radio dedication bed, hand percussion, warm keys,
+      subtle brass lift and a celebratory but tasteful ending, no voice.
+    bed_duration_seconds: 13
+  - id: dedicace-curieux
+    category: dedications
+    character: consultant
+    text: >-
+      Dédicace aux curieuses et aux curieux qui posent des questions précises, lisent les
+      étiquettes et savent dire je ne sais pas. Vous rendez la bière plus intéressante.
+    bed_prompt: >-
+      Fourteen-second thoughtful radio dedication bed, mellow upright bass, gentle piano,
+      brushed cymbals and a clear optimistic resolution, sincere, no voice.
+    bed_duration_seconds: 14
 
 music:
   - id: cuivre-nocturne
@@ -190,4 +253,20 @@ music:
       deep bass, subtle industrial brewery percussion and restrained horn phrases,
       confident and relaxed, no vocals, no references to existing artists or songs,
       clean radio intro and ending.
+    duration_seconds: 75
+  - id: levure-solaire
+    title: Levure solaire
+    prompt: >-
+      Original instrumental sunny soul-funk track for a French craft radio station, 106 BPM,
+      warm clavinet, rounded bass, lively drums, sparkling electric piano and short joyful
+      brass phrases, bright without becoming childish, no vocals, no references to existing
+      artists or songs, clean radio intro and ending.
+    duration_seconds: 75
+  - id: cuves-fantomes
+    title: Cuves fantômes
+    prompt: >-
+      Original instrumental atmospheric downtempo track for late-night radio, 88 BPM,
+      deep analog bass, distant metallic brewery echoes, restrained breakbeat, warm synth pads
+      and occasional muted horn notes, mysterious but comforting, no vocals, no references
+      to existing artists or songs, clean radio intro and ending.
     duration_seconds: 75
