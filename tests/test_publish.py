@@ -50,6 +50,14 @@ def test_nginx_returns_404_for_missing_episode_pages():
     assert "location /episodes/ { try_files $uri =404; }" in config
 
 
+def test_nginx_serves_only_published_static_audio_without_account_auth():
+    config = Path("deploy/nginx.conf").read_text(encoding="utf-8")
+    audio_location = config.split("location /audio/ {", 1)[1].split("}", 1)[0]
+    assert "try_files $uri =404;" in audio_location
+    assert "auth_request" not in audio_location
+    assert "proxy_pass" not in audio_location
+
+
 def test_live_player_retries_after_an_early_icecast_404():
     script = (Path(__file__).parents[1] / "site/public/assets/app.js").read_text(encoding="utf-8")
     assert "await audio.play()" in script
