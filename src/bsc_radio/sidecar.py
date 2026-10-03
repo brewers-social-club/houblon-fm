@@ -12,6 +12,7 @@ from typing import Annotated
 from fastapi import Cookie, Depends, FastAPI, Form, HTTPException, Request, Response
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 
+from .admin_api import build_admin_router
 from .antenna import AntennaClock
 from .audio import ensure_fallback_audio
 from .auth import AuthService
@@ -259,6 +260,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             (term.strip(), pronunciation.strip()),
         )
         return {"ok": True}
+
+    app.include_router(build_admin_router(settings, db, required_admin))
 
     @app.post("/api/stripe/webhook")
     async def stripe_webhook(request: Request):

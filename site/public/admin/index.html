@@ -3,37 +3,48 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Administration · Houblon FM</title>
+  <meta name="color-scheme" content="light dark">
+  <title>Studio · Houblon FM</title>
   <link rel="stylesheet" href="/assets/app.css">
+  <link rel="stylesheet" href="/admin/admin.css">
   <script src="/admin/app.js" defer></script>
 </head>
-<body>
-  <header>
-    <a class="brand" href="/">Houblon FM</a>
-    <button id="logout" class="admin-link" type="button" hidden>Déconnexion</button>
-  </header>
-  <main class="admin-shell">
-    <section id="login-panel" class="admin-login">
-      <p class="eyebrow">ADMINISTRATION</p>
-      <h1>Le studio</h1>
-      <form id="login-form" class="admin-form">
-        <label>
-          <span>Identifiant</span>
-          <input name="login" autocomplete="username" required autofocus>
-        </label>
-        <label>
-          <span>Mot de passe</span>
-          <input name="password" type="password" autocomplete="current-password" required>
-        </label>
-        <button class="primary" type="submit">Connexion</button>
-        <p id="login-status" class="admin-status" role="status"></p>
-      </form>
-    </section>
-    <section id="dashboard-panel" hidden>
-      <p class="eyebrow">ADMINISTRATION</p>
-      <h1>Le studio</h1>
-      <div id="dashboard" class="grid"><p>Chargement…</p></div>
-    </section>
-  </main>
+<body class="studio-body">
+  <section id="login-panel" class="studio-login">
+    <div class="login-brand"><span class="live-dot"></span> HOUBLON FM</div>
+    <form id="login-form" class="login-card">
+      <p class="eyebrow">STUDIO D’ANTENNE</p><h1>Connexion</h1>
+      <p class="muted">Pilote la collecte, l’éditorial et le direct depuis un seul endroit.</p>
+      <label><span>Identifiant</span><input name="login" autocomplete="username" required autofocus></label>
+      <label><span>Mot de passe</span><input name="password" type="password" autocomplete="current-password" required></label>
+      <button class="primary" type="submit">Entrer dans le studio</button>
+      <p id="login-status" class="form-status" role="status"></p>
+    </form>
+  </section>
+  <div id="studio" class="studio" hidden>
+    <aside class="studio-sidebar">
+      <a class="studio-brand" href="/"><span class="live-dot"></span><span>Houblon FM<small>Studio</small></span></a>
+      <nav id="studio-nav" class="studio-nav" aria-label="Sections">
+        <button data-view="overview" class="active"><span>⌂</span>Vue d’ensemble</button>
+        <button data-view="episodes"><span>◉</span>Épisodes</button>
+        <button data-view="collection"><span>↓</span>Collecte</button>
+        <button data-view="editorial"><span>✦</span>Éditorial</button>
+        <button data-view="antenna"><span>◖</span>Antenne</button>
+        <button data-view="operations"><span>⚙</span>Exploitation</button>
+      </nav>
+      <div class="sidebar-footer"><a href="/" target="_blank">Ouvrir le site ↗</a><button id="logout" type="button">Déconnexion</button></div>
+    </aside>
+    <main class="studio-main">
+      <header class="studio-topbar">
+        <div><p id="view-kicker" class="eyebrow">STUDIO</p><h1 id="view-title">Vue d’ensemble</h1></div>
+        <div class="topbar-actions"><span id="global-status" class="sync-status" aria-live="polite"></span><button id="refresh" class="icon-button" type="button" aria-label="Actualiser">↻</button></div>
+      </header>
+      <div id="view" class="studio-view"><div class="loading-card">Chargement du studio…</div></div>
+    </main>
+  </div>
+  <dialog id="detail-dialog" class="detail-dialog">
+    <div class="dialog-head"><div><p id="dialog-kicker" class="eyebrow"></p><h2 id="dialog-title"></h2></div><button id="dialog-close" class="icon-button" type="button" aria-label="Fermer">×</button></div>
+    <div id="dialog-body" class="dialog-body"></div>
+  </dialog>
 </body>
 </html>

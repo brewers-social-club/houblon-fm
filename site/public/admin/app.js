@@ -1,66 +1,68 @@
-const loginPanel = document.querySelector('#login-panel');
-const dashboardPanel = document.querySelector('#dashboard-panel');
-const loginForm = document.querySelector('#login-form');
-const loginStatus = document.querySelector('#login-status');
-const logoutButton = document.querySelector('#logout');
-const dashboard = document.querySelector('#dashboard');
+const state={view:'overview',filters:{},sources:[],itemsHtml:'',topicsHtml:'',factsHtml:'',loading:false};
+const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const studio=$('#studio'),loginPanel=$('#login-panel'),loginForm=$('#login-form'),loginStatus=$('#login-status'),view=$('#view'),dialog=$('#detail-dialog');
+const titles={overview:['STUDIO','Vue d’ensemble'],episodes:['CONTENU','Épisodes'],collection:['SOURCES','Collecte'],editorial:['SOURÇAGE','Éditorial'],antenna:['DIRECT','Antenne'],operations:['SYSTÈME','Exploitation']};
+const esc=(v='')=>String(v).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+const date=v=>{if(!v)return'—';const d=new Date(v);return Number.isNaN(d.valueOf())?v:new Intl.DateTimeFormat('fr-FR',{dateStyle:'medium',timeStyle:'short'}).format(d)};
+const duration=v=>{const n=Number(v||0);return n?`${Math.floor(n/60)} min ${Math.round(n%60)} s`:'—'};
+const bytes=v=>{const n=Number(v||0);return n<1024?`${n} o`:n<1048576?`${(n/1024).toFixed(1)} Ko`:`${(n/1048576).toFixed(1)} Mo`};
+const badge=v=>`<span class="status status-${esc(v)}">${esc(v||'inconnu')}</span>`;
+const empty=m=>`<div class="empty-state"><strong>Rien à signaler</strong><p>${esc(m)}</p></div>`;
+const metric=(l,v,h='')=>`<article class="metric"><span>${esc(l)}</span><strong>${esc(v)}</strong><small>${esc(h)}</small></article>`;
+const pair=(l,v)=>`<div><dt>${esc(l)}</dt><dd>${esc(v)}</dd></div>`;
 
-function showLogin(message = '') {
-  loginPanel.hidden = false;
-  dashboardPanel.hidden = true;
-  logoutButton.hidden = true;
-  loginStatus.textContent = message;
+async function api(path,options={}){
+  const response=await fetch(`/api/admin${path}`,{credentials:'same-origin',...options});
+  if(response.status===401){showLogin('Ta session a expiré.');throw new Error('unauthorized')}
+  const data=await response.json().catch(()=>({}));
+  if(!response.ok)throw new Error(data.detail||'Erreur du studio');
+  return data;
 }
+function showLogin(message=''){loginPanel.hidden=false;studio.hidden=true;loginStatus.textContent=message}
+function showStudio(){loginPanel.hidden=true;studio.hidden=false}
+function notify(message,error=false){const n=$('#global-status');n.textContent=message;n.classList.toggle('error',error);clearTimeout(notify.timer);notify.timer=setTimeout(()=>n.textContent='',4000)}
+function openDialog(k,t,b){$('#dialog-kicker').textContent=k;$('#dialog-title').textContent=t;$('#dialog-body').innerHTML=b;dialog.showModal()}
 
-function showDashboard() {
-  loginPanel.hidden = true;
-  dashboardPanel.hidden = false;
-  logoutButton.hidden = false;
+async function overview(){
+  const d=await api('/overview'),c=d.counts;
+  return `<section class="hero-status"><div><p class="eyebrow">EN CE MOMENT</p><h2>${esc(d.now?.title||'Aucun élément')}</h2><p>${esc(d.now?.format||'L’antenne attend')} · ${date(d.now?.started_at)}</p></div><a class="listen-button" href="/live.mp3" target="_blank">Écouter ↗</a></section>
+  <section class="metric-grid">${metric('Épisodes publiés',c.published,`${c.pending} en préparation`)}${metric('Sources actives',c.active_sources,`${c.collected_items} contenus`)}${metric('Faits',c.facts,`${c.topics} sujets`)}${metric('Audio',duration(c.audio_seconds),`${Number(c.cost_eur).toFixed(2)} € tracés`)}</section>
+  <section class="dashboard-grid"><article class="panel"><div class="panel-title"><h3>Dernière exécution</h3>${d.last_run?badge(d.last_run.status):''}</div>${d.last_run?`<p class="big-line">${esc(d.last_run.command)}</p><p>${date(d.last_run.started_at)} → ${date(d.last_run.finished_at)}</p>`:empty('Aucun pipeline enregistré.')}</article>
+  <article class="panel"><div class="panel-title"><h3>Dernière collecte</h3></div>${d.last_fetch?`<p class="big-line">${esc(d.last_fetch.source_name)}</p><p>${d.last_fetch.item_count} élément(s) · ${date(d.last_fetch.started_at)}</p>${d.last_fetch.error?`<p class="error-text">${esc(d.last_fetch.error)}</p>`:''}`:empty('Aucun passage enregistré.')}</article>
+  <article class="panel"><div class="panel-title"><h3>Alertes</h3></div><p class="big-line">${c.open_incidents} incident(s)</p><p>${c.active_tasks} tâche(s) · base ${bytes(d.database_bytes)}</p></article></section>`;
 }
-
-async function loadDashboard() {
-  const response = await fetch('/api/admin/dashboard', { credentials: 'same-origin' });
-  if (response.status === 401) {
-    showLogin();
-    return;
-  }
-  if (!response.ok) throw new Error('Impossible de charger le studio');
-  const data = await response.json();
-  dashboard.innerHTML = `
-    <article class="card"><span>Coûts</span><h3>${Number(data.cost_eur).toFixed(2)} €</h3></article>
-    <article class="card"><span>Incidents</span><h3>${data.incidents.length}</h3></article>
-    <article class="card"><span>Tâches</span><h3>${data.tasks.length}</h3></article>
-    <article class="card"><span>Avis</span><h3>${data.feedback.length}</h3></article>`;
-  showDashboard();
+async function episodes(){
+  const q=state.filters.episodeQ||'',s=state.filters.episodeStatus||'',d=await api(`/episodes?q=${encodeURIComponent(q)}&status=${encodeURIComponent(s)}&limit=100`);
+  const tools=`<div class="toolbar"><input id="episode-search" type="search" placeholder="Rechercher…" value="${esc(q)}"><select id="episode-status"><option value="">Tous les statuts</option>${['draft','verified','audio','published','failed','rejected'].map(x=>`<option ${s===x?'selected':''}>${x}</option>`).join('')}</select><span>${d.pagination.total} épisode(s)</span></div>`;
+  return tools+(d.items.length?`<div class="episode-list">${d.items.map(e=>`<button class="episode-row" data-episode="${e.id}"><span class="episode-id">#${e.id}</span><span class="episode-main"><strong>${esc(e.title)}</strong><small>${esc(e.format)} · ${date(e.created_at)}</small></span><span>${badge(e.status)}${e.hidden?'<small class="hidden-label">Masqué</small>':''}</span><span class="episode-meta">${duration(e.duration_seconds)}<small>${e.sentence_count} phrases · ${e.airing_count} diffusions</small></span><span>›</span></button>`).join('')}</div>`:empty('Aucun épisode pour ces filtres.'));
 }
-
-loginForm.addEventListener('submit', async (event) => {
-  event.preventDefault();
-  const button = loginForm.querySelector('button');
-  button.disabled = true;
-  loginStatus.textContent = 'Connexion…';
-  try {
-    const response = await fetch('/api/admin/login', {
-      method: 'POST',
-      body: new FormData(loginForm),
-      credentials: 'same-origin',
-    });
-    if (!response.ok) {
-      showLogin(response.status === 401 ? 'Identifiants invalides.' : 'Connexion impossible.');
-      return;
-    }
-    loginForm.reset();
-    await loadDashboard();
-  } catch {
-    showLogin('Connexion impossible.');
-  } finally {
-    button.disabled = false;
-  }
-});
-
-logoutButton.addEventListener('click', async () => {
-  await fetch('/api/admin/logout', { method: 'POST', credentials: 'same-origin' });
-  showLogin('Session fermée.');
-});
-
-loadDashboard().catch(() => showLogin('Studio temporairement indisponible.'));
+async function showEpisode(id){
+  const d=await api(`/episodes/${id}`),e=d.episode;
+  const sentences=d.sentences.map(l=>`<article class="sentence"><div><strong>${esc(l.character)}</strong>${badge(l.verdict||'pending')}</div><p>${esc(l.text)}</p>${l.facts.length?`<details><summary>${l.facts.length} fait(s)</summary>${l.facts.map(f=>`<a href="${esc(f.source_url)}" target="_blank"><b>#${f.id}</b> ${esc(f.statement)}<small>${esc(f.source_name)}</small></a>`).join('')}</details>`:''}</article>`).join('');
+  openDialog('ÉPISODE',`#${e.id} · ${e.title}`,`<div class="dialog-actions"><button class="secondary" data-visibility="${e.hidden?0:1}" data-id="${e.id}">${e.hidden?'Remettre en ligne':'Masquer du site'}</button><button class="danger" data-delete="${e.id}">Supprimer définitivement</button></div><div class="detail-metrics">${metric('Statut',e.status)}${metric('Durée',duration(e.duration_seconds))}${metric('Diffusions',d.airings.length)}${metric('LUFS',e.lufs??'—')}</div>${e.rejection_reason?`<div class="alert error-text">${esc(e.rejection_reason)}</div>`:''}<section class="detail-section"><h3>Résumé</h3><p>${esc(e.summary||'Aucun résumé.')}</p><dl>${pair('Format',e.format)}${pair('Station',e.station)}${pair('Créé',date(e.created_at))}${pair('Publié',date(e.published_at))}${pair('Audio',e.audio_path||'—')}</dl></section><section class="detail-section"><h3>Script vérifié</h3>${sentences||empty('Aucune phrase.')}</section><section class="detail-section"><h3>Diffusions</h3><div class="compact-list">${d.airings.map(a=>`<div><strong>${date(a.started_at)}</strong><span>${esc(a.reason||'—')}</span></div>`).join('')||empty('Jamais diffusé.')}</div></section>`);
+}
+const sourceCards=s=>`<div class="source-grid">${s.map(x=>`<button class="source-card" data-source="${esc(x.id)}"><div><span class="kind">${esc(x.kind)}</span>${badge(x.enabled?'active':'disabled')}</div><h3>${esc(x.name)}</h3><p>${x.item_count} contenus · ${x.pending_count} à analyser</p><small>${x.last_error?`Erreur : ${esc(x.last_error)}`:`Dernier passage ${date(x.last_started_at)}`}</small></button>`).join('')}</div>`;
+const itemList=d=>`<div class="toolbar"><span>${d.pagination.total} contenu(s)</span></div><div class="content-list">${d.items.map(i=>`<button data-item="${i.id}"><span class="kind">${esc(i.source_name)}</span><strong>${esc(i.title)}</strong><small>${date(i.published_at)} · ${i.fact_count} faits · ${i.content_length} caractères</small></button>`).join('')}</div>`;
+async function collection(){const [s,i]=await Promise.all([api('/sources'),api('/items?limit=100')]);state.sources=s;state.itemsHtml=itemList(i);return `<div class="subtabs"><button class="active" data-collection-tab="sources">Sources</button><button data-collection-tab="items">Contenus (${i.pagination.total})</button></div><section id="collection-content">${sourceCards(s)}</section>`}
+async function showSource(id){const s=state.sources.find(x=>x.id===id),f=await api(`/sources/${encodeURIComponent(id)}/fetches`);openDialog('SOURCE',s?.name||id,`<div class="detail-metrics">${metric('Contenus',s?.item_count||0)}${metric('À analyser',s?.pending_count||0)}${metric('Type',s?.kind||'—')}</div><section class="detail-section"><dl>${pair('URL',s?.url||'—')}${pair('Station',s?.station||'—')}${pair('Active',s?.enabled?'Oui':'Non')}</dl></section><section class="detail-section"><h3>Derniers passages</h3><div class="compact-list">${f.map(x=>`<div><strong>${date(x.started_at)} · ${x.item_count} élément(s)</strong><span>${x.error?esc(x.error):'Terminé sans erreur'}</span></div>`).join('')}</div></section>`)}
+async function showItem(id){const d=await api(`/items/${id}`),i=d.item;openDialog('CONTENU',i.title,`<div class="detail-metrics">${metric('Source',i.source_name)}${metric('Statut',i.status)}${metric('Faits',d.facts.length)}</div><section class="detail-section"><dl>${pair('Auteur',i.author||'—')}${pair('Publié',date(i.published_at))}${pair('Collecté',date(i.collected_at))}</dl><p><a href="${esc(i.url)}" target="_blank">Ouvrir la source ↗</a></p></section><section class="detail-section"><h3>Texte collecté</h3><div class="raw-text">${esc(i.raw_text||'Aucun texte.')}</div></section><section class="detail-section"><h3>Faits extraits</h3>${d.facts.map(f=>`<article class="fact-card"><b>${esc(f.fact_type)}</b><p>${esc(f.statement)}</p><small>Fiabilité ${Math.round(f.reliability*100)} %</small></article>`).join('')||empty('Pas encore analysé.')}</section>`)}
+const topicList=d=>`<div class="content-list">${d.items.map(t=>`<button data-topic="${t.id}"><span class="kind">${esc(t.station)}</span><strong>${esc(t.title)}</strong><p>${esc(t.summary)}</p><small>${t.fact_count} faits · ${date(t.last_seen_at)}</small></button>`).join('')}</div>`;
+const factList=d=>`<div class="content-list">${d.items.map(f=>`<a href="${esc(f.source_url)}" target="_blank"><span class="kind">${esc(f.fact_type)}</span><strong>${esc(f.statement)}</strong><small>${esc(f.source_name)} · fiabilité ${Math.round(f.reliability*100)} %</small></a>`).join('')}</div>`;
+async function editorial(){const[t,f]=await Promise.all([api('/topics?limit=100'),api('/facts?limit=100')]);state.topicsHtml=topicList(t);state.factsHtml=factList(f);return `<div class="subtabs"><button class="active" data-editorial-tab="topics">Sujets (${t.pagination.total})</button><button data-editorial-tab="facts">Faits (${f.pagination.total})</button></div><section id="editorial-content">${state.topicsHtml}</section>`}
+async function showTopic(id){const d=await api(`/topics/${id}`);openDialog('SUJET',d.topic.title,`<section class="detail-section"><p>${esc(d.topic.summary)}</p><dl>${pair('Station',d.topic.station)}${pair('Statut',d.topic.status)}${pair('Première détection',date(d.topic.first_seen_at))}${pair('Dernière détection',date(d.topic.last_seen_at))}</dl></section><section class="detail-section"><h3>${d.facts.length} faits</h3>${d.facts.map(f=>`<article class="fact-card"><b>${esc(f.fact_type)} · ${Math.round(f.reliability*100)} %</b><p>${esc(f.statement)}</p><a href="${esc(f.source_url)}" target="_blank">${esc(f.source_name)} ↗</a></article>`).join('')}</section>`)}
+async function antenna(){const d=await api('/antenna'),groups=d.assets.reduce((x,a)=>((x[a.category]??=[]).push(a),x),{});return `<section class="hero-status"><div><p class="eyebrow">À L’ANTENNE</p><h2>${esc(d.now?.title||'Silence antenne')}</h2><p>${esc(d.now?.format||'—')} · ${date(d.now?.started_at)}</p></div><span class="on-air-badge"><i></i>EN DIRECT</span></section><section class="panel"><div class="panel-title"><h3>Horloge d’antenne</h3>${badge(d.enabled?'active':'disabled')}</div><div class="clock-flow">${d.clock.map((x,i)=>`<span><b>${i+1}</b>${esc(x)}</span>`).join('')}</div></section><section class="asset-sections">${Object.entries(groups).map(([n,a])=>`<article class="panel"><div class="panel-title"><h3>${esc(n)}</h3><span>${a.length}</span></div><div class="asset-grid">${a.map(x=>`<div><span class="kind">${esc(x.group||x.category)}</span><strong>${esc(x.title||x.text||x.id)}</strong><small>${esc(x.filename)} · ${bytes(x.bytes)}</small></div>`).join('')}</div></article>`).join('')}</section><section class="panel"><h3>Dernières diffusions</h3><div class="compact-list">${d.recent_airings.map(a=>`<div><strong>${esc(a.title||'Élément antenne')}</strong><span>${date(a.started_at)} · ${esc(a.reason||'—')}</span></div>`).join('')}</div></section>`}
+async function operations(){const d=await api('/operations');return `<section class="metric-grid">${metric('Runs',d.runs.length)}${metric('Incidents ouverts',d.incidents.filter(x=>x.status==='open').length)}${metric('Tâches actives',d.tasks.filter(x=>['pending','running'].includes(x.status)).length)}${metric('Avis',d.feedback.length)}</section><div class="ops-grid"><article class="panel"><h3>Exécutions</h3><div class="compact-list">${d.runs.map(r=>`<div><strong>#${r.id} ${esc(r.command)} ${badge(r.status)}</strong><span>${date(r.started_at)} → ${date(r.finished_at)}</span></div>`).join('')}</div></article><article class="panel"><h3>Incidents</h3><div class="compact-list">${d.incidents.map(i=>`<div><strong>${esc(i.kind)} ${badge(i.status)}</strong><span>${esc(i.message)}</span>${i.status==='open'?`<button data-resolve="${i.id}" class="text-button">Résoudre</button>`:''}</div>`).join('')||empty('Aucun incident.')}</div></article></div><section class="panel"><h3>Coûts</h3><div class="table-wrap"><table><thead><tr><th>Fournisseur</th><th>Opération</th><th>Modèle</th><th>Requêtes</th><th>Coût</th></tr></thead><tbody>${d.costs.map(c=>`<tr><td>${esc(c.provider)}</td><td>${esc(c.operation)}</td><td>${esc(c.model)}</td><td>${c.requests}</td><td>${Number(c.cost_eur).toFixed(4)} €</td></tr>`).join('')}</tbody></table></div></section><section class="panel"><div class="panel-title"><h3>Journal technique</h3><button id="load-logs" class="secondary">Charger 200 lignes</button></div><div id="logs-view"></div></section>`}
+const renderers={overview,episodes,collection,editorial,antenna,operations};
+async function render(){if(state.loading)return;state.loading=true;view.innerHTML='<div class="skeleton-grid"><i></i><i></i><i></i><i></i></div>';const[k,t]=titles[state.view];$('#view-kicker').textContent=k;$('#view-title').textContent=t;$$('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===state.view));try{view.innerHTML=await renderers[state.view]();bind();showStudio()}catch(e){if(e.message!=='unauthorized')view.innerHTML=`<div class="alert error-text">${esc(e.message)}</div>`}finally{state.loading=false}}
+function bind(){
+  $$('[data-episode]').forEach(x=>x.onclick=()=>showEpisode(x.dataset.episode));$$('[data-source]').forEach(x=>x.onclick=()=>showSource(x.dataset.source));$$('[data-item]').forEach(x=>x.onclick=()=>showItem(x.dataset.item));$$('[data-topic]').forEach(x=>x.onclick=()=>showTopic(x.dataset.topic));
+  $('#episode-search')?.addEventListener('change',e=>{state.filters.episodeQ=e.target.value;render()});$('#episode-status')?.addEventListener('change',e=>{state.filters.episodeStatus=e.target.value;render()});
+  $$('[data-collection-tab]').forEach(x=>x.onclick=()=>{$$('[data-collection-tab]').forEach(b=>b.classList.toggle('active',b===x));$('#collection-content').innerHTML=x.dataset.collectionTab==='sources'?sourceCards(state.sources):state.itemsHtml;bind()});
+  $$('[data-editorial-tab]').forEach(x=>x.onclick=()=>{$$('[data-editorial-tab]').forEach(b=>b.classList.toggle('active',b===x));$('#editorial-content').innerHTML=x.dataset.editorialTab==='facts'?state.factsHtml:state.topicsHtml;bind()});
+  $$('[data-resolve]').forEach(x=>x.onclick=async()=>{await api(`/incidents/${x.dataset.resolve}/resolve`,{method:'POST'});notify('Incident résolu.');render()});
+  $('#load-logs')?.addEventListener('click',async()=>{const l=await api('/logs?lines=200');$('#logs-view').innerHTML=`<div class="log-view">${l.map(x=>`<div class="log-${esc(x.level||'info')}"><time>${date(x.timestamp)}</time><b>${esc(x.event||'log')}</b><span>${esc(x.message||'')}</span></div>`).join('')}</div>`});
+}
+dialog.addEventListener('click',async e=>{const v=e.target.closest('[data-visibility]');if(v){const f=new FormData();f.set('hidden',v.dataset.visibility==='1');await api(`/episodes/${v.dataset.id}/visibility`,{method:'POST',body:f});dialog.close();notify('Visibilité mise à jour.');render()}const d=e.target.closest('[data-delete]');if(d){const id=d.dataset.delete,c=prompt(`Saisis DELETE ${id}`);if(c!==`DELETE ${id}`)return;const f=new FormData();f.set('confirmation',c);await api(`/episodes/${id}/delete`,{method:'POST',body:f});dialog.close();notify(`Épisode #${id} supprimé.`);render()}});
+$('#dialog-close').onclick=()=>dialog.close();$$('[data-view]').forEach(b=>b.onclick=()=>{state.view=b.dataset.view;render()});$('#refresh').onclick=()=>render();$('#logout').onclick=async()=>{await fetch('/api/admin/logout',{method:'POST',credentials:'same-origin'});showLogin('Session fermée.')};
+loginForm.addEventListener('submit',async e=>{e.preventDefault();const b=$('button',loginForm);b.disabled=true;loginStatus.textContent='Connexion…';try{const r=await fetch('/api/admin/login',{method:'POST',body:new FormData(loginForm),credentials:'same-origin'});if(!r.ok){showLogin('Identifiants invalides.');return}loginForm.reset();await render()}catch{showLogin('Connexion impossible.')}finally{b.disabled=false}});
+api('/session').then(()=>render()).catch(()=>showLogin());
