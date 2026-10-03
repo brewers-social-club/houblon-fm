@@ -382,7 +382,14 @@ def voices():
 
 
 @app.command()
-def imaging(force: bool = typer.Option(False, "--force", help="Régénérer les sons existants")):
+def imaging(
+    force: bool = typer.Option(False, "--force", help="Régénérer les sons existants"),
+    spoken_only: bool = typer.Option(
+        False,
+        "--spoken-only",
+        help="Limiter la génération aux idents, blagues, promos et dédicaces",
+    ),
+):
     """Génère jingles, liners, pubs, dédicaces et musiques avec ElevenLabs."""
     settings = Settings.load()
     settings.ensure_dirs()
@@ -390,8 +397,10 @@ def imaging(force: bool = typer.Option(False, "--force", help="Régénérer les 
     db.migrate()
     log = PipelineLog(settings, db, "imaging")
     try:
-        with log.stage("imaging.generate", force=force):
-            result = ImagingProducer(settings).generate(force=force)
+        with log.stage("imaging.generate", force=force, spoken_only=spoken_only):
+            result = ImagingProducer(settings).generate(
+                force=force, spoken_only=spoken_only
+            )
     except Exception as exc:
         log.fail(exc)
         typer.echo(f"Échec de l'habillage : {_safe_failure_message(exc)}", err=True)

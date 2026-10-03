@@ -113,6 +113,24 @@ def test_admin_studio_exposes_all_read_models(tmp_path: Path):
     assert client.get("/api/admin/sources").json()[0]["item_count"] == 1
 
 
+def test_admin_can_preview_episode_and_antenna_mp3_files(tmp_path: Path):
+    client, _db, episode_id, *_ = _client(tmp_path)
+    antenna = tmp_path / "data" / "antenna" / "jokes" / "test-joke.mp3"
+    antenna.parent.mkdir(parents=True, exist_ok=True)
+    antenna.write_bytes(b"ID3-antenna-preview")
+
+    episode = client.get(f"/api/admin/episodes/{episode_id}/audio")
+    assert episode.status_code == 200
+    assert episode.headers["content-type"] == "audio/mpeg"
+    assert episode.content == b"ID3-test"
+
+    asset = client.get("/api/admin/antenna/audio/jokes/test-joke")
+    assert asset.status_code == 200
+    assert asset.headers["content-type"] == "audio/mpeg"
+    assert asset.content == b"ID3-antenna-preview"
+    assert client.get("/api/admin/antenna/audio/jokes/missing").status_code == 404
+
+
 def test_admin_studio_requires_authentication(tmp_path: Path):
     cfg, *_ = _seed(tmp_path)
     client = TestClient(create_app(cfg))
@@ -128,6 +146,8 @@ def test_admin_studio_requires_authentication(tmp_path: Path):
         "/api/admin/logs",
     ):
         assert client.get(path).status_code == 401
+    assert client.get("/api/admin/episodes/1/audio").status_code == 401
+    assert client.get("/api/admin/antenna/audio/jokes/test-joke").status_code == 401
 
 
 def test_admin_can_toggle_episode_visibility(tmp_path: Path):
@@ -156,4 +176,5 @@ def test_admin_ui_contains_studio_sections():
     assert "/episodes" in script
     assert "/sources" in script
     assert "/antenna" in script
+    assert "data-audio" in script
     assert "@media(max-width:680px)" in css

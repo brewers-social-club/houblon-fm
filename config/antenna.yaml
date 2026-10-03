@@ -61,6 +61,7 @@ spoken:
   - id: identite-principale
     category: station_ids
     character: presenter
+    delivery: [excited, warm]
     text: "Houblon FM. La radio brassicole qui fermente mieux que tes idées du lundi matin."
     bed_prompt: >-
       Six-second premium radio ident bed, warm brass, subtle bubbling texture,
@@ -69,6 +70,7 @@ spoken:
   - id: identite-courte
     category: station_ids
     character: presenter
+    delivery: [cheerful, emphatic]
     text: "Tu écoutes Houblon FM. Des faits, du malt, et zéro blabla éventé."
     bed_prompt: >-
       Five-second upbeat radio ident, crisp drums, tiny brass flourish and fizzy texture,
@@ -77,6 +79,7 @@ spoken:
   - id: blague-levure
     category: jokes
     character: presenter
+    delivery: [mischievous, chuckles]
     text: >-
       La levure travaille sans pause, sans syndicat et sans réunion Teams. Franchement,
       c'est le meilleur service de la station.
@@ -87,6 +90,7 @@ spoken:
   - id: blague-temperature
     category: jokes
     character: consultant
+    delivery: [sarcastic, short_pause]
     text: >-
       Rappel technique : si ta fermentation s'emballe, ce n'est pas du caractère.
       C'est un thermostat qui a démissionné.
@@ -97,6 +101,7 @@ spoken:
   - id: identite-fermentation
     category: station_ids
     character: audience
+    delivery: [softly, thoughtful]
     text: >-
       Houblon FM. Ici, même les silences ont eu le temps de fermenter.
     bed_prompt: >-
@@ -106,6 +111,7 @@ spoken:
   - id: blague-nettoyage
     category: jokes
     character: consultant
+    delivery: [sarcastic, chuckles]
     text: >-
       Le brassage, c'est vingt pour cent de recette et quatre-vingts pour cent de nettoyage.
       La mousse, elle, refuse toujours de participer aux corvées.
@@ -116,6 +122,7 @@ spoken:
   - id: blague-densite
     category: jokes
     character: presenter
+    delivery: [mischievous, laughs]
     text: >-
       J'ai demandé sa densité au brassin. Il m'a répondu qu'il ne parlait pas de son poids
       avant le premier café. Une vraie diva de fermenteur.
@@ -126,6 +133,7 @@ spoken:
   - id: identite-fut
     category: station_ids
     character: storyteller
+    delivery: [warm, emphatic]
     text: >-
       Houblon FM. On ouvre les sujets, pas les fûts sans autorisation.
     bed_prompt: >-
@@ -135,6 +143,7 @@ spoken:
   - id: blague-houblon
     category: jokes
     character: audience
+    delivery: [mischievous, chuckles]
     text: >-
       Le houblon voulait devenir influenceur. Il avait déjà l'amertume, le parfum et
       beaucoup trop de cônes pour une seule photo de profil.
@@ -145,6 +154,7 @@ spoken:
   - id: blague-recette
     category: jokes
     character: presenter
+    delivery: [sarcastic, sighs]
     text: >-
       Une recette de bière sans notes, c'est comme une réunion sans ordre du jour :
       tout le monde improvise et quelqu'un finit toujours par accuser la levure.
@@ -155,6 +165,7 @@ spoken:
   - id: promo-sources
     category: promos
     character: storyteller
+    delivery: [serious, warm]
     text: >-
       Ici, chaque information garde sa source. Les rumeurs restent au comptoir,
       et les liens sont disponibles avec chaque émission.
@@ -165,6 +176,7 @@ spoken:
   - id: promo-participation
     category: promos
     character: presenter
+    delivery: [cheerful, mischievous]
     text: >-
       Une question, une correction ou une idée d'émission ? Laisse ton message sur Houblon FM.
       Oui, même toi au fond, je t'ai vu lever la main.
@@ -175,6 +187,7 @@ spoken:
   - id: dedicace-brasseurs
     category: dedications
     character: presenter
+    delivery: [warm, emphatic]
     text: >-
       Dédicace aux brasseuses, aux brasseurs, et à celles et ceux qui nettoient encore
       une cuve pendant que les autres expliquent la recette. Cette transition est pour vous.
@@ -185,6 +198,7 @@ spoken:
   - id: dedicace-coulisses
     category: dedications
     character: storyteller
+    delivery: [warm, thoughtful]
     text: >-
       Dédicace aux malteurs, aux houblonniers, aux cavistes et à toutes les petites mains
       qu'on oublie quand on raconte une bière. Houblon FM vous met enfin au premier rang.
@@ -195,6 +209,7 @@ spoken:
   - id: dedicace-auditeurs
     category: dedications
     character: audience
+    delivery: [softly, warm]
     text: >-
       Dédicace à celles et ceux qui nous écoutent en nettoyant la brasserie, en fermant
       la boutique ou en préparant demain. Oui, cette radio sait que tu bosses encore.
@@ -205,6 +220,7 @@ spoken:
   - id: dedicace-associations
     category: dedications
     character: presenter
+    delivery: [excited, warm]
     text: >-
       Dédicace aux associations, aux clubs et aux bénévoles qui montent des événements
       avec trois rallonges, deux tables bancales et une énergie absolument déraisonnable.
@@ -215,6 +231,7 @@ spoken:
   - id: dedicace-curieux
     category: dedications
     character: consultant
+    delivery: [thoughtful, warm]
     text: >-
       Dédicace aux curieuses et aux curieux qui posent des questions précises, lisent les
       étiquettes et savent dire je ne sais pas. Vous rendez la bière plus intéressante.

@@ -180,7 +180,14 @@ avant les générations automatisées. Les journaux sont disponibles avec, par e
 jingles/stingers via Sound Effects, idents et interventions multivoix, promos, dédicaces et
 musiques instrumentales originales via Music. La commande `radio imaging` génère uniquement les
 éléments absents dans `data/antenna/`; `radio imaging --force` les régénère volontairement.
+`radio imaging --spoken-only --force` remplace uniquement les idents, blagues, promos et
+dédicaces avec le modèle vocal actif, sans repayer les musiques et stingers. Les éléments
+parlés acceptent les mêmes directions de jeu Eleven v4 que les émissions (`delivery`).
 `radio antenna-status` affiche ce qui est réellement prêt à diffuser.
+
+Le studio admin permet d'écouter directement chaque MP3 d'épisode ou d'habillage. Ces
+prévisualisations restent protégées par la session administrateur et ne rendent pas le dossier
+`data/antenna/` public.
 
 Le sidecar déroule automatiquement `clock` et saute sans erreur les catégories encore vides.
 Chaque personnage possède ses propres réglages ElevenLabs (`stability`, `similarity_boost`,

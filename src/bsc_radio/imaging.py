@@ -9,7 +9,8 @@ from typing import Any, Protocol
 
 import httpx
 
-from .characters import character_voice, resolve_character
+from .audio import validate_spoken_audio
+from .characters import character_voice, render_performance_text, resolve_character
 from .config import Settings
 from .providers import ElevenLabsVoiceProvider, VoiceProvider
 
@@ -147,14 +148,14 @@ class ImagingProducer:
             ]
         )
 
-    def generate(self, *, force: bool = False) -> dict[str, Any]:
+    def generate(self, *, force: bool = False, spoken_only: bool = False) -> dict[str, Any]:
         config = self.settings.antenna
         generated: list[str] = []
         skipped: list[str] = []
         self.root.mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(prefix="radio-imaging-", dir=self.root) as directory:
             temp = Path(directory)
-            for asset in config.get("sound_effects", []):
+            for asset in ([] if spoken_only else config.get("sound_effects", [])):
                 destination = self._destination(asset["category"], asset["id"])
                 if destination.exists() and not force:
                     skipped.append(str(destination))
@@ -181,12 +182,16 @@ class ImagingProducer:
                 speech = temp / f"{_identifier(asset['id'])}-speech.mp3"
                 bed = temp / f"{_identifier(asset['id'])}-bed.mp3"
                 mixed = temp / f"{_identifier(asset['id'])}-mixed.mp3"
+                spoken_text = render_performance_text(
+                    str(asset["text"]), asset.get("delivery", [])
+                )
                 self.voice.synthesize(
-                    str(asset["text"]),
+                    spoken_text,
                     character_voice(profile, "elevenlabs", self.settings.elevenlabs_voice_id),
                     speech,
                     profile.get("performance", {}),
                 )
+                validate_spoken_audio(speech, spoken_text)
                 self.creative.sound_effect(
                     str(asset["bed_prompt"]),
                     bed,
@@ -197,7 +202,7 @@ class ImagingProducer:
                 mixed.replace(destination)
                 generated.append(str(destination))
 
-            for asset in config.get("music", []):
+            for asset in ([] if spoken_only else config.get("music", [])):
                 destination = self._destination("music", asset["id"])
                 if destination.exists() and not force:
                     skipped.append(str(destination))
@@ -215,6 +220,8 @@ class ImagingProducer:
         manifest = {
             "generated": generated,
             "skipped": skipped,
+            "spoken_only": spoken_only,
+            "voice_model": getattr(self.voice, "model", None),
             "clock": config.get("clock", []),
         }
         (self.root / "manifest.json").write_text(

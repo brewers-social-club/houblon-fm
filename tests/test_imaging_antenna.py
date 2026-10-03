@@ -92,6 +92,51 @@ def test_imaging_producer_builds_spoken_effect_and_music_assets(tmp_path, monkey
         assert duration(path) > 0
 
 
+def test_imaging_spoken_only_uses_delivery_and_preserves_creative_assets(tmp_path, monkeypatch):
+    cfg = settings(tmp_path)
+    monkeypatch.setattr(
+        cfg.__class__,
+        "antenna",
+        property(
+            lambda self: {
+                "clock": ["station_ids", "stingers", "music"],
+                "sound_effects": [{"id": "sweep", "category": "stingers", "prompt": "Sweep"}],
+                "spoken": [{
+                    "id": "ident",
+                    "category": "station_ids",
+                    "character": "presenter",
+                    "text": "Houblon FM.",
+                    "delivery": ["excited", "laughs"],
+                    "bed_prompt": "Bed",
+                    "bed_duration_seconds": 2,
+                }],
+                "music": [{"id": "track", "prompt": "Music", "duration_seconds": 2}],
+            }
+        ),
+    )
+
+    class Voice(MockVoiceProvider):
+        model = "eleven_v4"
+
+        def __init__(self):
+            self.texts = []
+
+        def synthesize(self, text, voice, output, style=""):
+            self.texts.append(text)
+            return super().synthesize(text, voice, output, style)
+
+    voice = Voice()
+    producer = ImagingProducer(cfg, voice, MockCreativeAudio())
+    result = producer.generate(force=True, spoken_only=True)
+
+    assert len(result["generated"]) == 1
+    assert voice.texts == ["[excited] [laughs] Houblon FM."]
+    assert result["spoken_only"] is True
+    assert result["voice_model"] == "eleven_v4"
+    assert not (cfg.data_dir / "antenna" / "stingers" / "sweep.mp3").exists()
+    assert not (cfg.data_dir / "antenna" / "music" / "track.mp3").exists()
+
+
 def test_antenna_clock_rotates_assets_and_episodes(tmp_path, monkeypatch):
     cfg = settings(tmp_path)
     monkeypatch.setattr(

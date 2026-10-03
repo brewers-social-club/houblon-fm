@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Query
+from fastapi.responses import FileResponse
 
 from .config import Settings
 from .db import Database
@@ -31,6 +34,18 @@ def _page(limit: int, offset: int, rows: list[Any], total: int) -> dict[str, Any
         "items": [_dict(row) for row in rows],
         "pagination": {"limit": limit, "offset": offset, "total": total},
     }
+
+
+def _audio_file(root: Path, candidate: Path) -> Path:
+    managed_root = root.resolve()
+    resolved = candidate.resolve()
+    try:
+        resolved.relative_to(managed_root)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail="Audio introuvable") from exc
+    if not resolved.is_file() or resolved.suffix.lower() != ".mp3":
+        raise HTTPException(status_code=404, detail="Audio introuvable")
+    return resolved
 
 
 def build_admin_router(
@@ -161,6 +176,19 @@ def build_admin_router(
                 )
             ],
         }
+
+    @router.get("/episodes/{episode_id}/audio")
+    def episode_audio(episode_id: int):
+        row = db.one(
+            "SELECT path FROM audio WHERE episode_id=? ORDER BY id DESC LIMIT 1",
+            (episode_id,),
+        )
+        if not row:
+            raise HTTPException(status_code=404, detail="Audio introuvable")
+        configured = Path(str(row["path"]))
+        candidate = configured if configured.is_file() else settings.data_dir / "audio" / configured.name
+        path = _audio_file(settings.data_dir / "audio", candidate)
+        return FileResponse(path, media_type="audio/mpeg", filename=path.name)
 
     @router.post("/episodes/{episode_id}/visibility")
     def episode_visibility(episode_id: int, hidden: bool = Form()):
@@ -340,6 +368,17 @@ def build_admin_router(
             ],
             "clock_index": _dict(db.one("SELECT value,updated_at FROM kv WHERE key='antenna.clock.index'")),
         }
+
+    @router.get("/antenna/audio/{category}/{asset_id}")
+    def antenna_audio(category: str, asset_id: str):
+        token = re.compile(r"[a-z0-9][a-z0-9_-]{1,79}")
+        if not token.fullmatch(category) or not token.fullmatch(asset_id):
+            raise HTTPException(status_code=404, detail="Audio introuvable")
+        path = _audio_file(
+            settings.data_dir / "antenna",
+            settings.data_dir / "antenna" / category / f"{asset_id}.mp3",
+        )
+        return FileResponse(path, media_type="audio/mpeg", filename=path.name)
 
     @router.get("/operations")
     def operations():
