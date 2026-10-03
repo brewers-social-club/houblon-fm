@@ -151,6 +151,22 @@ dans les URL ni dans les logs. `META_GRAPH_VERSION` et `GEMINI_SEARCH_MODEL` per
 
 ## Habillage et direct vivant
 
+### Générer une émission en arrière-plan
+
+`deploy/run-format.sh` lance un format dans une unité systemd utilisateur détachée, construit le
+titre avec la date française du jour et conserve le processus après la fermeture du terminal :
+
+```bash
+deploy/run-format.sh week
+deploy/run-format.sh journal 72
+deploy/run-format.sh portrait 720 "Portrait brassicole du"
+```
+
+Les formats acceptés sont `journal`, `headlines`, `awards`, `week`, `portrait`, `recipe`, `style`,
+`glossary` et `feedback`. Le script utilise `--skip-collect` : planifier `radio collect` séparément
+avant les générations automatisées. Les journaux sont disponibles avec, par exemple,
+`journalctl --user -fu houblon-radio-week`.
+
 `config/antenna.yaml` décrit une horloge d'antenne et les éléments générés par ElevenLabs :
 jingles/stingers via Sound Effects, idents et interventions multivoix, promos, dédicaces et
 musiques instrumentales originales via Music. La commande `radio imaging` génère uniquement les
