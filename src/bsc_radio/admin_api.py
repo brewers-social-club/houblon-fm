@@ -128,6 +128,7 @@ def build_admin_router(
         ):
             item = _dict(row)
             fact_ids = _json(item.pop("fact_ids_json", "[]"), [])
+            item["delivery"] = _json(item.pop("delivery_json", "[]"), [])
             item["fact_ids"] = fact_ids
             item["facts"] = [
                 _dict(fact)

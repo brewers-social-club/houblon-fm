@@ -466,13 +466,16 @@ def import_scripts(directory: str = "emissions"):
                     ),
                 ).lastrowid
             connection.executemany(
-                "INSERT INTO sentence(episode_id,position,character,text,fact_ids_json) VALUES(?,?,?,?,?)",
+                """INSERT INTO sentence(
+                episode_id,position,character,text,delivery_json,fact_ids_json
+                ) VALUES(?,?,?,?,?,?)""",
                 [
                     (
                         episode_id,
                         position,
                         line["character"],
                         line["text"],
+                        json.dumps(line.get("delivery", [])),
                         json.dumps(line.get("fact_ids", [])),
                     )
                     for position, line in enumerate(script)

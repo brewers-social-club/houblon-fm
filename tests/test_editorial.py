@@ -41,9 +41,16 @@ def test_extract_topic_write_verify(tmp_path: Path):
     episode = pipeline.write_episode("journal")
     result = pipeline.verify_episode(episode)
     assert result["status"] == "verified"
-    assert json.loads(
+    script = json.loads(
         db.one("SELECT script_json FROM episode WHERE id=?", (episode,))["script_json"]
     )
+    assert script
+    assert all("delivery" in line for line in script)
+    assert any(line["delivery"] == ["warm"] for line in script)
+    stored = db.all(
+        "SELECT delivery_json FROM sentence WHERE episode_id=? ORDER BY position", (episode,)
+    )
+    assert any(json.loads(row["delivery_json"]) == ["warm"] for row in stored)
 
 
 def test_does_not_reuse_facts_already_reserved_by_an_episode(tmp_path: Path):

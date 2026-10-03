@@ -82,7 +82,7 @@ class Settings:
             meta_graph_version=os.getenv("META_GRAPH_VERSION", "v24.0"),
             elevenlabs_api_key=os.getenv("ELEVENLABS_API_KEY", ""),
             elevenlabs_voice_id=os.getenv("ELEVENLABS_VOICE_ID", "pNInz6obpgDQGcFmaJgB"),
-            elevenlabs_model=os.getenv("ELEVENLABS_MODEL", "eleven_turbo_v2_5"),
+            elevenlabs_model=os.getenv("ELEVENLABS_MODEL", "eleven_v4"),
             elevenlabs_style=float(os.getenv("ELEVENLABS_STYLE", "0.6")),
             codex_bin=os.getenv("CODEX_BIN", "codex"),
             codex_light_model=os.getenv("CODEX_MODEL_LIGHT", "").strip() or codex_default_model,

@@ -165,14 +165,16 @@ class EditorialPipeline:
             )
             episode_id = cursor.lastrowid
             connection.executemany(
-                """INSERT INTO sentence(episode_id,position,character,text,fact_ids_json)
-                VALUES(?,?,?,?,?)""",
+                """INSERT INTO sentence(
+                episode_id,position,character,text,delivery_json,fact_ids_json
+                ) VALUES(?,?,?,?,?,?)""",
                 [
                     (
                         episode_id,
                         pos,
                         line["character"],
                         line["text"],
+                        json.dumps(line.get("delivery", [])),
                         json.dumps(line.get("fact_ids", [])),
                     )
                     for pos, line in enumerate(script)
@@ -221,7 +223,8 @@ class EditorialPipeline:
         with self.db.transaction() as connection:
             kept = list(
                 connection.execute(
-                    "SELECT character,text,fact_ids_json FROM sentence WHERE episode_id=? AND verdict!='deleted' ORDER BY position",
+                    """SELECT character,text,delivery_json,fact_ids_json FROM sentence
+                    WHERE episode_id=? AND verdict!='deleted' ORDER BY position""",
                     (episode_id,),
                 )
             )
@@ -229,6 +232,7 @@ class EditorialPipeline:
                 {
                     "character": row["character"],
                     "text": row["text"],
+                    "delivery": json.loads(row["delivery_json"] or "[]"),
                     "fact_ids": json.loads(row["fact_ids_json"]),
                 }
                 for row in kept

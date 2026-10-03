@@ -3,6 +3,27 @@ from __future__ import annotations
 import unicodedata
 from typing import Any
 
+DELIVERY_TAGS = {
+    "warm": "warmly",
+    "cheerful": "cheerfully",
+    "excited": "excited",
+    "curious": "curious",
+    "thoughtful": "thoughtful",
+    "serious": "serious",
+    "mischievous": "mischievously",
+    "sarcastic": "sarcastic",
+    "surprised": "surprised",
+    "concerned": "concerned",
+    "softly": "softly",
+    "whispers": "whispers",
+    "emphatic": "emphatic",
+    "laughs": "laughs",
+    "chuckles": "chuckles",
+    "sighs": "sighs",
+    "clears_throat": "clears throat",
+    "short_pause": "short pause",
+}
+
 
 def _character_token(value: object) -> str:
     return unicodedata.normalize("NFKC", str(value or "")).strip().casefold()
@@ -44,5 +65,25 @@ def canonicalize_script(
         role, _ = resolve_character(characters, line.get("character"))
         normalized = dict(line)
         normalized["character"] = role
+        delivery = normalized.get("delivery", [])
+        if not isinstance(delivery, list):
+            delivery = []
+        normalized["delivery"] = [
+            str(value) for value in delivery if str(value) in DELIVERY_TAGS
+        ][:2]
         canonical.append(normalized)
     return canonical
+
+
+def render_performance_text(text: str, delivery: object) -> str:
+    """Add only known Eleven audio tags while keeping factual text untouched."""
+    values = delivery if isinstance(delivery, list) else []
+    tags: list[str] = []
+    for value in values:
+        tag = DELIVERY_TAGS.get(str(value))
+        if tag and tag not in tags:
+            tags.append(tag)
+        if len(tags) == 2:
+            break
+    prefix = " ".join(f"[{tag}]" for tag in tags)
+    return f"{prefix} {text.strip()}".strip()

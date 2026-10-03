@@ -61,7 +61,7 @@ n'embarque volontairement ni le CLI ni ses identifiants.
 
 Pour une vraie voix, configurez `RADIO_TTS_PROVIDER=elevenlabs` avec
 `ELEVENLABS_API_KEY`, ou `RADIO_TTS_PROVIDER=gemini` avec `GEMINI_API_KEY`. Le provider
-ElevenLabs utilise par défaut Adam, `eleven_turbo_v2_5`, un style à `0.6` et produit du MP3
+ElevenLabs utilise par défaut Adam, `eleven_v4`, un style à `0.6` et produit du MP3
 128 kb/s. Chaque personnage peut toutefois utiliser sa propre voix dans
 `config/characters.yaml`, avec une entrée par fournisseur :
 
@@ -77,6 +77,15 @@ Les identifiants ElevenLabs sont visibles dans la bibliothèque de voix du compt
 `radio voices` affiche le casting effectivement résolu. `radio say "Test" --character Camille`
 permet d'écouter un personnage, et `radio revoice <id>` remplace atomiquement l'audio d'une
 émission existante avec le casting courant.
+
+Les scripts récents séparent le texte factuel et jusqu'à deux directions de jeu contrôlées dans
+`delivery` : rire, soupir, curiosité, surprise, chuchotement ou emphase. Ces indications ne passent
+jamais dans la vérification des faits. Avec Eleven v4, les échanges sont envoyés à l'API
+Text-to-Dialogue par séquences de moins de 2 000 caractères afin que les voix partagent le contexte
+et réagissent naturellement. Les émissions plus longues sont raccordées avec un contexte
+avant/après ; si Text-to-Dialogue échoue, la production retombe sur les prises séparées sans perdre
+l'épisode. Les anciens scripts sans `delivery` restent compatibles. `radio revoice <id>` peut les
+revocaliser avec v4, mais ne leur invente pas rétroactivement de directions de jeu.
 
 ## Commandes
 

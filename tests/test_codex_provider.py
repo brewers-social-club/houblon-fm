@@ -44,7 +44,12 @@ class FakeCodex:
             },
             "script": {
                 "lines": [
-                    {"character": "presenter", "text": "Texte vérifié.", "fact_ids": [1]}
+                    {
+                        "character": "presenter",
+                        "text": "Texte vérifié.",
+                        "delivery": ["warm"],
+                        "fact_ids": [1],
+                    }
                 ]
             },
             "verdict": {"verdict": "supported", "flags": [], "note": "Soutenu."},
@@ -73,6 +78,7 @@ def test_codex_provider_uses_stdin_sandbox_and_structured_outputs(tmp_path: Path
     assert facts[0]["reliability"] == 0.9
     assert topic["station"] == "brassage"
     assert script[0]["fact_ids"] == [1]
+    assert script[0]["delivery"] == ["warm"]
     assert verdict["verdict"] == "supported"
     assert rewrite == "La fermentation a duré cinq jours."
     assert len(fake.calls) == 5

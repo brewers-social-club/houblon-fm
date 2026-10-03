@@ -55,7 +55,8 @@ CREATE INDEX IF NOT EXISTS idx_episode_status_format ON episode(status, format, 
 CREATE TABLE IF NOT EXISTS sentence (
   id INTEGER PRIMARY KEY, episode_id INTEGER NOT NULL REFERENCES episode(id) ON DELETE CASCADE,
   position INTEGER NOT NULL, character TEXT NOT NULL, text TEXT NOT NULL,
-  fact_ids_json TEXT NOT NULL DEFAULT '[]', verdict TEXT, verifier_note TEXT,
+  delivery_json TEXT NOT NULL DEFAULT '[]', fact_ids_json TEXT NOT NULL DEFAULT '[]',
+  verdict TEXT, verifier_note TEXT,
   UNIQUE(episode_id, position)
 );
 CREATE TABLE IF NOT EXISTS audio (
@@ -154,7 +155,15 @@ class Database:
                 )
             if "pid" not in columns:
                 connection.execute("ALTER TABLE pipeline_run ADD COLUMN pid INTEGER")
+            sentence_columns = {
+                row["name"] for row in connection.execute("PRAGMA table_info(sentence)")
+            }
+            if "delivery_json" not in sentence_columns:
+                connection.execute(
+                    "ALTER TABLE sentence ADD COLUMN delivery_json TEXT NOT NULL DEFAULT '[]'"
+                )
             connection.execute("INSERT OR IGNORE INTO schema_migration(version) VALUES (1)")
+            connection.execute("INSERT OR IGNORE INTO schema_migration(version) VALUES (2)")
 
     @contextlib.contextmanager
     def transaction(self, immediate: bool = False) -> Iterator[sqlite3.Connection]:

@@ -4,8 +4,19 @@ from types import SimpleNamespace
 import yaml
 from fastapi.testclient import TestClient
 
-from bsc_radio.audio import AudioProducer, duration, group_script_takes
-from bsc_radio.characters import canonicalize_script, character_voice, resolve_character
+from bsc_radio.audio import (
+    AudioProducer,
+    duration,
+    group_script_takes,
+    split_dialogue_chunks,
+    validate_spoken_audio,
+)
+from bsc_radio.characters import (
+    canonicalize_script,
+    character_voice,
+    render_performance_text,
+    resolve_character,
+)
 from bsc_radio.db import Database
 from bsc_radio.providers import ElevenLabsVoiceProvider, GeminiVoiceProvider, MockVoiceProvider
 from bsc_radio.sidecar import create_app
@@ -104,6 +115,78 @@ def test_elevenlabs_voice_falls_back_and_rejects_malformed_ids(tmp_path: Path, m
     assert len(calls) == 1
 
 
+def test_elevenlabs_dialogue_uses_v4_multiple_voices_and_context(tmp_path: Path, monkeypatch):
+    cfg = settings(tmp_path)
+    object.__setattr__(cfg, "elevenlabs_api_key", "protected-test-key")
+    object.__setattr__(cfg, "elevenlabs_model", "eleven_v4")
+    calls = []
+
+    class Response:
+        content = b"ID3-dialogue"
+
+        @staticmethod
+        def raise_for_status():
+            return None
+
+    monkeypatch.setattr(
+        "bsc_radio.providers.httpx.post",
+        lambda url, **kwargs: calls.append((url, kwargs)) or Response(),
+    )
+    output = tmp_path / "dialogue.mp3"
+    provider = ElevenLabsVoiceProvider(cfg)
+    provider.synthesize_dialogue(
+        [
+            {"voice_id": "voice-camille", "text": "[curious] Alors, Marcel ?"},
+            {"voice_id": "voice-marcel", "text": "[chuckles] Ça fermente."},
+        ],
+        output,
+        previous_text="Avant " * 30,
+        future_text="Après " * 30,
+    )
+
+    assert provider.supports_dialogue is True
+    assert calls[0][0] == "https://api.elevenlabs.io/v1/text-to-dialogue"
+    payload = calls[0][1]["json"]
+    assert payload["model_id"] == "eleven_v4"
+    assert payload["language_code"] == "fr"
+    assert [item["voice_id"] for item in payload["inputs"]] == [
+        "voice-camille",
+        "voice-marcel",
+    ]
+    assert len(payload["previous_text"]) <= 100
+    assert len(payload["future_text"]) <= 100
+    assert calls[0][1]["headers"]["xi-api-key"] == "protected-test-key"
+
+
+def test_delivery_tags_are_whitelisted_and_dialogue_chunks_stay_bounded():
+    assert render_performance_text(
+        "Une phrase.", ["curious", "laughs", "malicious instruction"]
+    ) == "[curious] [laughs] Une phrase."
+    assert render_performance_text("Texte légal.", []) == "Texte légal."
+
+    chunks = split_dialogue_chunks(
+        [
+            {"voice_id": "one", "text": "A" * 1200},
+            {"voice_id": "two", "text": "B" * 1200},
+            {"voice_id": "one", "text": "C" * 2400},
+        ]
+    )
+    assert len(chunks) >= 3
+    assert all(sum(len(item["text"]) for item in chunk) <= 1900 for chunk in chunks)
+    assert [item["voice_id"] for chunk in chunks for item in chunk].count("one") >= 3
+
+
+def test_audio_validation_rejects_truncated_files(tmp_path: Path):
+    broken = tmp_path / "broken.mp3"
+    broken.write_bytes(b"ID3")
+    try:
+        validate_spoken_audio(broken, "Un texte beaucoup trop long pour ce fichier vide.")
+    except RuntimeError as exc:
+        assert "vide ou incomplet" in str(exc)
+    else:  # pragma: no cover
+        raise AssertionError("Un MP3 tronqué doit être rejeté")
+
+
 def test_character_names_aliases_and_provider_voices_are_resolved():
     characters = {
         "presenter": {
@@ -178,6 +261,62 @@ def test_audio_producer_sends_each_character_to_its_elevenlabs_voice(tmp_path: P
         "O31r762Gb3WFygrEOGh0",
         "hqfrgApggtO1785R4Fsn",
     ]
+
+
+def test_audio_producer_prefers_dialogue_and_falls_back_when_it_fails(tmp_path: Path):
+    cfg = settings(tmp_path)
+    object.__setattr__(cfg, "tts_provider", "elevenlabs")
+    object.__setattr__(cfg, "elevenlabs_model", "eleven_v4")
+    db = Database(cfg.database)
+    db.migrate()
+    episode_id = db.execute(
+        """INSERT INTO episode(slug,title,format,station,status,script_json)
+        VALUES(?,?,?,?,?,?)""",
+        (
+            "dialogue-v4",
+            "Dialogue v4",
+            "journal",
+            "brasserie",
+            "verified",
+            '[{"character":"presenter","text":"Alors ?","delivery":["curious"]},'
+            '{"character":"consultant","text":"Ça fermente.","delivery":["chuckles"]}]',
+        ),
+    )
+
+    class DialogueVoice:
+        supports_dialogue = True
+
+        def __init__(self, fail=False):
+            self.fail = fail
+            self.dialogues = []
+            self.singles = []
+
+        def synthesize_dialogue(self, inputs, output, **kwargs):
+            self.dialogues.append((inputs, kwargs))
+            if self.fail:
+                raise RuntimeError("panne simulée")
+            MockVoiceProvider().synthesize(
+                " ".join(item["text"] for item in inputs), "mock", output
+            )
+
+        def synthesize(self, text, voice, output, style=""):
+            self.singles.append((text, voice))
+            MockVoiceProvider().synthesize(text, voice, output, style)
+
+    dialogue = DialogueVoice()
+    AudioProducer(cfg, db, dialogue).produce(episode_id)
+    assert dialogue.singles == []
+    assert [item["voice_id"] for item in dialogue.dialogues[0][0]] == [
+        "O31r762Gb3WFygrEOGh0",
+        "hqfrgApggtO1785R4Fsn",
+    ]
+    assert dialogue.dialogues[0][0][0]["text"].startswith("[curious]")
+
+    db.execute("UPDATE episode SET status='verified' WHERE id=?", (episode_id,))
+    fallback = DialogueVoice(fail=True)
+    AudioProducer(cfg, db, fallback).produce(episode_id)
+    assert len(fallback.dialogues) == 1
+    assert len(fallback.singles) == 2
 
 
 def test_consecutive_lines_share_one_voice_take():
