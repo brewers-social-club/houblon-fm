@@ -140,9 +140,10 @@ durées, saisons, numéros, images et catégories disponibles dans le flux sont 
   Pages et publications autorisées par le jeton ; aucune session web n'est scrapée.
 - **Instagram** : nécessite `ig_user_id` et le même `META_ACCESS_TOKEN`. L'API officielle cible
   les comptes professionnels/créateurs reliés et autorisés, pas tous les comptes publics.
-- **Google** : `google_grounded` utilise `GEMINI_API_KEY` et le Grounding with Google Search pour
-  produire une veille synthétique accompagnée de citations. Ce n'est pas l'encart « Aperçu IA »
-  de la page Google — celui-ci n'a pas d'API publique — mais son équivalent officiel exploitable.
+- **Google** : `google_grounded` utilise `GEMINI_API_KEY`, l'Interactions API et le Grounding with
+  Google Search (`gemini-3.8-flash` par défaut) pour produire une veille synthétique accompagnée
+  de citations. Ce n'est pas l'encart « Aperçu IA » de la page Google — celui-ci n'a pas d'API
+  publique — mais son équivalent officiel exploitable.
 
 Les appels authentifiés placent les clés dans des en-têtes HTTP afin qu'elles ne finissent ni
 dans les URL ni dans les logs. `META_GRAPH_VERSION` et `GEMINI_SEARCH_MODEL` permettent de faire

@@ -22,7 +22,7 @@ def settings(tmp: Path) -> Settings:
         session_secret="secret",
         anthropic_api_key="",
         gemini_api_key="",
-        gemini_search_model="gemini-2.5-flash",
+        gemini_search_model="gemini-3.8-flash",
         youtube_api_key="",
         meta_access_token="",
         meta_graph_version="v24.0",

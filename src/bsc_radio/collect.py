@@ -787,33 +787,74 @@ class Collector:
             )
         )
         response = httpx.post(
-            f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
+            "https://generativelanguage.googleapis.com/v1beta/interactions",
             headers={
                 "x-goog-api-key": self.settings.gemini_api_key,
                 "User-Agent": self.settings.user_agent,
             },
             json={
-                "contents": [{"parts": [{"text": f"{prompt}\n\nRecherche : {query}"}]}],
-                "tools": [{"google_search": {}}],
-                "generationConfig": {"temperature": 0.2},
+                "model": model,
+                "input": f"{prompt}\n\nRecherche : {query}",
+                "tools": [{"type": "google_search"}],
             },
-            timeout=60,
+            timeout=120,
         )
         payload = self._api_payload(response, "Google Grounding")
-        candidates = payload.get("candidates") or []
-        if not candidates:
-            raise RuntimeError("Google Grounding: aucune réponse")
-        candidate = candidates[0]
-        parts = ((candidate.get("content") or {}).get("parts") or [])
-        text = "\n".join(str(part.get("text")) for part in parts if part.get("text")).strip()
-        grounding = candidate.get("groundingMetadata") or {}
-        citations = []
-        for chunk in grounding.get("groundingChunks") or []:
-            web = chunk.get("web") if isinstance(chunk, dict) else None
-            if isinstance(web, dict) and web.get("uri"):
-                citations.append(
-                    {"title": web.get("title"), "url": sanitize_url(str(web["uri"]))}
-                )
+        interaction = payload.get("interaction") or payload
+        steps = interaction.get("steps") or []
+        texts: list[str] = []
+        citations: list[dict[str, Any]] = []
+        search_queries: list[str] = []
+
+        for step in steps:
+            if not isinstance(step, dict):
+                continue
+            step_type = step.get("type")
+            if step_type == "google_search_call":
+                queries = step.get("queries") or []
+                search_queries.extend(str(value) for value in queries if value)
+            elif step_type == "google_search_result":
+                for result in step.get("result") or step.get("results") or []:
+                    if not isinstance(result, dict):
+                        continue
+                    url = result.get("url") or result.get("uri")
+                    if url:
+                        citations.append(
+                            {
+                                "title": result.get("title"),
+                                "url": sanitize_url(str(url)),
+                            }
+                        )
+            elif step_type == "model_output":
+                for block in step.get("content") or []:
+                    if not isinstance(block, dict):
+                        continue
+                    if block.get("type") == "text" and block.get("text"):
+                        texts.append(str(block["text"]))
+                    for annotation in block.get("annotations") or []:
+                        if not isinstance(annotation, dict):
+                            continue
+                        if annotation.get("type") != "url_citation":
+                            continue
+                        url = annotation.get("url") or annotation.get("uri")
+                        if url:
+                            citations.append(
+                                {
+                                    "title": annotation.get("title"),
+                                    "url": sanitize_url(str(url)),
+                                }
+                            )
+
+        text = "\n".join(texts).strip()
+        if not text:
+            raise RuntimeError("Google Grounding: aucune réponse textuelle")
+        citations = list(
+            {
+                citation["url"]: citation
+                for citation in citations
+                if citation.get("url")
+            }.values()
+        )
         collected_on = dt.datetime.now(dt.UTC).date().isoformat()
         separator = "&" if urllib.parse.urlparse(source["url"]).query else "?"
         record = {
@@ -827,7 +868,8 @@ class Collector:
                 "query": query,
                 "model": model,
                 "citations": citations,
-                "search_queries": grounding.get("webSearchQueries") or [],
+                "search_queries": list(dict.fromkeys(search_queries)),
+                "interaction_id": interaction.get("id"),
             },
         }
         return self._store_records(source, [record])

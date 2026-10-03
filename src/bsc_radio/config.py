@@ -76,7 +76,7 @@ class Settings:
             session_secret=os.getenv("RADIO_SESSION_SECRET", "development-only"),
             anthropic_api_key=os.getenv("ANTHROPIC_API_KEY", ""),
             gemini_api_key=os.getenv("GEMINI_API_KEY", ""),
-            gemini_search_model=os.getenv("GEMINI_SEARCH_MODEL", "gemini-2.5-flash"),
+            gemini_search_model=os.getenv("GEMINI_SEARCH_MODEL", "gemini-3.8-flash"),
             youtube_api_key=os.getenv("YOUTUBE_API_KEY", ""),
             meta_access_token=os.getenv("META_ACCESS_TOKEN", ""),
             meta_graph_version=os.getenv("META_GRAPH_VERSION", "v24.0"),

@@ -632,17 +632,41 @@ def test_google_grounded_stores_summary_and_citations(tmp_path, monkeypatch):
         calls.append((url, kwargs))
         return FakeJsonResponse(
             {
-                "candidates": [
-                    {
-                        "content": {"parts": [{"text": "Actualités brassicoles vérifiées et datées."}]},
-                        "groundingMetadata": {
-                            "webSearchQueries": ["actualités bière France"],
-                            "groundingChunks": [
-                                {"web": {"title": "Beer News", "uri": "https://beernews.fr/a?token=x"}}
+                "interaction": {
+                    "id": "interaction-123",
+                    "status": "completed",
+                    "steps": [
+                        {
+                            "type": "google_search_call",
+                            "queries": ["actualités bière France"],
+                        },
+                        {
+                            "type": "google_search_result",
+                            "result": [
+                                {
+                                    "title": "Beer News",
+                                    "url": "https://beernews.fr/a?token=x",
+                                }
                             ],
                         },
-                    }
-                ]
+                        {
+                            "type": "model_output",
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "Actualités brassicoles vérifiées et datées.",
+                                    "annotations": [
+                                        {
+                                            "type": "url_citation",
+                                            "title": "Beer News",
+                                            "url": "https://beernews.fr/a?token=x",
+                                        }
+                                    ],
+                                }
+                            ],
+                        },
+                    ],
+                }
             },
             url=url,
         )
@@ -659,9 +683,14 @@ def test_google_grounded_stores_summary_and_citations(tmp_path, monkeypatch):
     insert_source(db, source)
 
     assert Collector(cfg, db).collect_source(source) == (1, 0)
+    assert calls[0][0] == "https://generativelanguage.googleapis.com/v1beta/interactions"
     assert calls[0][1]["headers"]["x-goog-api-key"] == "gemini-secret"
     assert "gemini-secret" not in calls[0][0]
+    assert calls[0][1]["json"]["model"] == "gemini-3.8-flash"
+    assert calls[0][1]["json"]["tools"] == [{"type": "google_search"}]
     item = db.one("SELECT url,metadata_json FROM item")
     assert "radio_date=" in item["url"]
     metadata = json.loads(item["metadata_json"])
     assert metadata["citations"] == [{"title": "Beer News", "url": "https://beernews.fr/a"}]
+    assert metadata["search_queries"] == ["actualités bière France"]
+    assert metadata["interaction_id"] == "interaction-123"
