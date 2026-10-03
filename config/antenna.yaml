@@ -28,6 +28,20 @@ sound_effects:
       Fast two-second radio swoosh made of fizzy bubbles, a bottle-cap metallic click
       and a clean bass impact, professional broadcast production, no voice.
     duration_seconds: 2
+  - id: fermentation-flash
+    category: stingers
+    prompt: >-
+      Three-second premium craft radio transition, rising fermentation bubbles,
+      a tight wooden percussion hit and a bright brass sparkle, playful French broadcast
+      identity, energetic clean ending, no voice, no reference to existing music.
+    duration_seconds: 3
+  - id: capsule-rebond
+    category: stingers
+    prompt: >-
+      Two-and-a-half-second professional radio stinger, bottle-cap pop transformed into
+      a rhythmic metallic rebound, fizzy stereo sweep and short warm bass impact,
+      witty and polished, no voice, no reference to existing music.
+    duration_seconds: 2.5
 
 spoken:
   - id: identite-principale
@@ -66,6 +80,35 @@ spoken:
       Eight-second dry comedy radio bed, muted upright bass, brushed snare,
       restrained punchline ending, no voice.
     bed_duration_seconds: 8
+  - id: identite-fermentation
+    category: station_ids
+    character: audience
+    text: >-
+      Houblon FM. Ici, même les silences ont eu le temps de fermenter.
+    bed_prompt: >-
+      Six-second quirky premium radio ident bed, bubbling percussion, warm bass pulse
+      and a tiny brass wink, generous room for a young male voice, no voice.
+    bed_duration_seconds: 6
+  - id: blague-nettoyage
+    category: jokes
+    character: consultant
+    text: >-
+      Le brassage, c'est vingt pour cent de recette et quatre-vingts pour cent de nettoyage.
+      La mousse, elle, refuse toujours de participer aux corvées.
+    bed_prompt: >-
+      Nine-second dry comedy radio bed, brushed snare, low pizzicato bass and one restrained
+      rimshot after the punchline, warm studio sound, no voice.
+    bed_duration_seconds: 9
+  - id: blague-densite
+    category: jokes
+    character: presenter
+    text: >-
+      J'ai demandé sa densité au brassin. Il m'a répondu qu'il ne parlait pas de son poids
+      avant le premier café. Une vraie diva de fermenteur.
+    bed_prompt: >-
+      Ten-second playful radio comedy bed, soft marimba, elastic bass and a discreet comic
+      punctuation at the end, modern and understated, no voice.
+    bed_duration_seconds: 10
   - id: promo-sources
     category: promos
     character: storyteller
@@ -96,6 +139,26 @@ spoken:
       Twelve-second heartfelt radio dedication bed, gentle electric piano and warm brass pad,
       sincere, not sentimental, no voice.
     bed_duration_seconds: 12
+  - id: dedicace-coulisses
+    category: dedications
+    character: storyteller
+    text: >-
+      Dédicace aux malteurs, aux houblonniers, aux cavistes et à toutes les petites mains
+      qu'on oublie quand on raconte une bière. Houblon FM vous met enfin au premier rang.
+    bed_prompt: >-
+      Thirteen-second warm radio dedication bed, gentle electric piano, soft brushed drums
+      and an uplifting brass resolution, sincere and elegant, no voice.
+    bed_duration_seconds: 13
+  - id: dedicace-auditeurs
+    category: dedications
+    character: audience
+    text: >-
+      Dédicace à celles et ceux qui nous écoutent en nettoyant la brasserie, en fermant
+      la boutique ou en préparant demain. Oui, cette radio sait que tu bosses encore.
+    bed_prompt: >-
+      Twelve-second late-evening community radio bed, mellow electric piano, subtle analog
+      pulse and a warm hopeful ending, intimate but not sentimental, no voice.
+    bed_duration_seconds: 12
 
 music:
   - id: cuivre-nocturne
@@ -111,4 +174,20 @@ music:
       Original instrumental electro-funk radio track, 108 BPM, playful analog synths,
       tight drums, metallic percussion suggesting brewing machinery, upbeat but not aggressive,
       no vocals, no references to existing artists or songs, clean radio ending.
+    duration_seconds: 75
+  - id: mousse-orbitale
+    title: Mousse orbitale
+    prompt: >-
+      Original instrumental cosmic funk track for a modern French craft radio station,
+      104 BPM, round synth bass, airy analog pads, crisp drums, playful bubbling percussion
+      and short brass accents, upbeat and spacious, no vocals, no references to existing
+      artists or songs, clean radio intro and ending.
+    duration_seconds: 75
+  - id: malt-et-bitume
+    title: Malt et bitume
+    prompt: >-
+      Original instrumental night-drive radio groove, 96 BPM, dusty breakbeat, warm Rhodes,
+      deep bass, subtle industrial brewery percussion and restrained horn phrases,
+      confident and relaxed, no vocals, no references to existing artists or songs,
+      clean radio intro and ending.
     duration_seconds: 75
