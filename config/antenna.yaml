@@ -239,6 +239,137 @@ spoken:
       Fourteen-second thoughtful radio dedication bed, mellow upright bass, gentle piano,
       brushed cymbals and a clear optimistic resolution, sincere, no voice.
     bed_duration_seconds: 14
+  - id: identite-decapsule
+    category: station_ids
+    character: presenter
+    delivery: [excited, mischievous]
+    text: >-
+      Houblon FM. Ici, on décapsule l'actualité brassicole sans secouer les faits.
+    bed_prompt: >-
+      Seven-second modern French craft radio ident bed, brisk brass pulse, crisp drums,
+      sparkling carbonation textures and a confident clean ending, room for a lively female
+      voice, no voice.
+    bed_duration_seconds: 7
+  - id: identite-precision
+    category: station_ids
+    character: consultant
+    delivery: [serious, short_pause]
+    text: >-
+      Houblon FM. De la précision, du caractère, et aucun chiffre brassé au hasard.
+    bed_prompt: >-
+      Eight-second precise premium radio ident bed, restrained upright bass, ticking wooden
+      percussion, one warm brass resolution and generous room for a calm male voice, no voice.
+    bed_duration_seconds: 8
+  - id: identite-nuit
+    category: station_ids
+    character: storyteller
+    delivery: [softly, warm]
+    text: >-
+      Houblon FM. La nuit tombe, les cuves travaillent, et les histoires restent éveillées.
+    bed_prompt: >-
+      Nine-second intimate late-night radio ident bed, soft Rhodes, distant brewery ambience,
+      warm analog pad and a delicate final chime, room for a close female voice, no voice.
+    bed_duration_seconds: 9
+  - id: blague-barboteur
+    category: jokes
+    character: audience
+    delivery: [curious, chuckles]
+    text: >-
+      J'ai demandé au barboteur s'il avait quelque chose à déclarer. Il a fait glou glou.
+      Le service communication valide le communiqué.
+    bed_prompt: >-
+      Eleven-second playful radio comedy bed, bubbling percussion, plucked bass, a discreet
+      woodblock response and a short comic ending, modern and understated, no voice.
+    bed_duration_seconds: 11
+  - id: blague-ibu
+    category: jokes
+    character: consultant
+    delivery: [sarcastic, sighs]
+    text: >-
+      Cent IBU sur l'étiquette. À ce niveau-là, ce n'est plus une mesure d'amertume,
+      c'est une lettre de menace avec une belle typographie.
+    bed_prompt: >-
+      Eleven-second dry comedy radio bed, sparse upright bass, brushed snare, one tense muted
+      brass note and a very restrained rimshot after the punchline, no voice.
+    bed_duration_seconds: 11
+  - id: blague-dry-hop
+    category: jokes
+    character: presenter
+    delivery: [mischievous, laughs]
+    text: >-
+      Le dry hop, c'est simple : tu ajoutes du houblon partout, puis tu passes trois jours
+      à expliquer pourquoi la brasserie sent comme une forêt qui aurait gagné au loto.
+    bed_prompt: >-
+      Twelve-second cheeky radio comedy bed, light funk bass, finger snaps, airy flute accent
+      and a compact playful finish, polished broadcast production, no voice.
+    bed_duration_seconds: 12
+  - id: promo-replay
+    category: promos
+    character: audience
+    delivery: [cheerful, emphatic]
+    text: >-
+      Tu as raté une émission ? Les replays de Houblon FM gardent les voix, les sources
+      et même les blagues discutables. Tout est sur radio point kloud point best.
+    bed_prompt: >-
+      Thirteen-second upbeat community radio promo bed, clean drums, bright electric piano,
+      fizzy stereo accents and an inviting resolved ending, room for a young male voice,
+      no voice.
+    bed_duration_seconds: 13
+  - id: promo-transparence
+    category: promos
+    character: storyteller
+    delivery: [serious, warm]
+    text: >-
+      Houblon FM utilise des voix et des outils d'intelligence artificielle. Les informations,
+      elles, restent reliées à leurs sources et vérifiées avant de passer à l'antenne.
+    bed_prompt: >-
+      Fourteen-second trustworthy modern public-radio promo bed, warm piano, restrained analog
+      pulse, subtle brass lift and a clear factual tone, room for a female voice, no voice.
+    bed_duration_seconds: 14
+  - id: promo-correction
+    category: promos
+    character: presenter
+    delivery: [curious, mischievous]
+    text: >-
+      Tu as repéré une erreur ou un sujet qu'on a laissé fermenter trop longtemps ?
+      Écris à Houblon FM. On préfère une correction fraîche à une certitude éventée.
+    bed_prompt: >-
+      Thirteen-second friendly listener-callout bed, warm acoustic percussion, playful bass,
+      tiny brass punctuation and an open welcoming ending, no voice.
+    bed_duration_seconds: 13
+  - id: dedicace-brassage-maison
+    category: dedications
+    character: audience
+    delivery: [warm, chuckles]
+    text: >-
+      Dédicace aux brasseuses et brasseurs maison qui ont transformé une cuisine en laboratoire,
+      puis découvert que le vrai patron du lieu, c'était le nettoyage.
+    bed_prompt: >-
+      Fourteen-second affectionate community-radio dedication bed, warm acoustic guitar,
+      soft brushes, mellow bass and a gentle humorous resolution, no voice.
+    bed_duration_seconds: 14
+  - id: dedicace-services
+    category: dedications
+    character: consultant
+    delivery: [thoughtful, emphatic]
+    text: >-
+      Dédicace aux équipes de service, de livraison et de maintenance. Sans vous, les meilleures
+      recettes resteraient immobiles, tièdes, et franchement moins intéressantes.
+    bed_prompt: >-
+      Fourteen-second sincere radio dedication bed, steady brushed drums, rounded bass,
+      warm electric piano and an uplifting brass close, dignified and unsentimental, no voice.
+    bed_duration_seconds: 14
+  - id: dedicace-matin
+    category: dedications
+    character: presenter
+    delivery: [softly, cheerful]
+    text: >-
+      Dédicace à celles et ceux qui ouvrent tôt, quand la ville dort encore et que la première
+      machine à café fait plus de bruit que toute la brasserie.
+    bed_prompt: >-
+      Thirteen-second early-morning radio dedication bed, soft Rhodes, gentle shaker,
+      muted trumpet sunrise phrase and a warm optimistic ending, intimate, no voice.
+    bed_duration_seconds: 13
 
 music:
   - id: cuivre-nocturne
