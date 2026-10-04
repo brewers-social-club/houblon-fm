@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import shutil
+from dataclasses import replace
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -86,6 +88,19 @@ def _client(tmp_path: Path):
     return client, db, episode_id, item_id, topic_id
 
 
+def _config_client(tmp_path: Path):
+    base = settings(tmp_path)
+    config_dir = tmp_path / "config"
+    shutil.copytree(base.config_dir, config_dir)
+    cfg = replace(base, config_dir=config_dir)
+    db = Database(cfg.database)
+    db.migrate()
+    client = TestClient(create_app(cfg))
+    login = client.post("/api/admin/login", data={"login": "admin", "password": "admin"})
+    assert login.status_code == 200
+    return client, cfg
+
+
 def test_admin_studio_exposes_all_read_models(tmp_path: Path):
     client, _db, episode_id, item_id, topic_id = _client(tmp_path)
     paths = [
@@ -102,6 +117,7 @@ def test_admin_studio_exposes_all_read_models(tmp_path: Path):
         "/api/admin/antenna",
         "/api/admin/operations",
         "/api/admin/logs",
+        "/api/admin/config",
     ]
     for path in paths:
         response = client.get(path)
@@ -144,10 +160,52 @@ def test_admin_studio_requires_authentication(tmp_path: Path):
         "/api/admin/antenna",
         "/api/admin/operations",
         "/api/admin/logs",
+        "/api/admin/config",
     ):
         assert client.get(path).status_code == 401
     assert client.get("/api/admin/episodes/1/audio").status_code == 401
     assert client.get("/api/admin/antenna/audio/jokes/test-joke").status_code == 401
+
+
+def test_admin_can_edit_validated_config_with_backup_and_conflict_detection(tmp_path: Path):
+    client, cfg = _config_client(tmp_path)
+    listing = client.get("/api/admin/config")
+    assert listing.status_code == 200
+    assert "lexicon.yaml" in {item["name"] for item in listing.json()["items"]}
+    assert listing.json()["secrets_managed"] is False
+
+    detail = client.get("/api/admin/config/lexicon.yaml")
+    assert detail.status_code == 200
+    original = detail.json()["content"]
+    checksum = detail.json()["checksum"]
+    modified = original + "\nZythologue: zi-to-logue\n"
+    saved = client.put(
+        "/api/admin/config/lexicon.yaml",
+        json={"content": modified, "expected_checksum": checksum},
+    )
+    assert saved.status_code == 200, saved.text
+    saved_file = saved.json()["file"]
+    assert "Zythologue" in (cfg.config_dir / "lexicon.yaml").read_text(encoding="utf-8")
+    assert (cfg.data_dir / saved_file["backup"]).is_file()
+
+    conflict = client.put(
+        "/api/admin/config/lexicon.yaml",
+        json={"content": modified, "expected_checksum": checksum},
+    )
+    assert conflict.status_code == 409
+    invalid = client.put(
+        "/api/admin/config/lexicon.yaml",
+        json={"content": "- pas: un objet", "expected_checksum": saved_file["checksum"]},
+    )
+    assert invalid.status_code == 422
+    assert client.get("/api/admin/config/not-managed.yaml").status_code == 404
+
+    restored = client.put(
+        "/api/admin/config/lexicon.yaml",
+        json={"content": original, "expected_checksum": saved_file["checksum"]},
+    )
+    assert restored.status_code == 200, restored.text
+    assert (cfg.config_dir / "lexicon.yaml").read_text(encoding="utf-8") == original
 
 
 def test_admin_can_toggle_episode_visibility(tmp_path: Path):
@@ -171,10 +229,15 @@ def test_admin_ui_contains_studio_sections():
     html = (root / "site/public/admin/index.html").read_text(encoding="utf-8")
     script = (root / "site/public/admin/app.js").read_text(encoding="utf-8")
     css = (root / "site/public/admin/admin.css").read_text(encoding="utf-8")
-    for label in ("Épisodes", "Collecte", "Éditorial", "Antenne", "Exploitation"):
+    config_css = (root / "site/public/admin/config.css").read_text(encoding="utf-8")
+    for label in ("Épisodes", "Collecte", "Éditorial", "Antenne", "Configuration", "Exploitation"):
         assert label in html
     assert "/episodes" in script
     assert "/sources" in script
     assert "/antenna" in script
     assert "data-audio" in script
+    assert "data-config" in script
+    assert "/config" in script
     assert "@media(max-width:680px)" in css
+    assert "@media (max-width: 680px)" in config_css
+    assert "min-height: 46px" in config_css

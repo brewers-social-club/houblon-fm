@@ -519,7 +519,7 @@ def test_compose_forces_shared_container_paths():
     environment = compose["services"]["sidecar"]["environment"]
     assert environment == {
         "RADIO_DATA_DIR": "/data",
-        "RADIO_CONFIG_DIR": "/app/config",
+        "RADIO_CONFIG_DIR": "/config",
         "RADIO_SITE_DIR": "/site",
     }
     assert compose["services"]["liquidsoap"]["build"] == {
@@ -527,5 +527,9 @@ def test_compose_forces_shared_container_paths():
         "dockerfile": "deploy/Dockerfile.liquidsoap",
     }
     assert "./data:/data" in compose["services"]["sidecar"]["volumes"]
+    assert "./config:/config" in compose["services"]["sidecar"]["volumes"]
+    assert not any(
+        volume.startswith("./config:") for volume in compose["services"]["web"]["volumes"]
+    )
     assert "./data:/data" in compose["services"]["liquidsoap"]["volumes"]
     assert "volumes" not in compose

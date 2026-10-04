@@ -8,12 +8,20 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Query
 from fastapi.responses import FileResponse
+from pydantic import BaseModel
 
+from .collect import Collector
 from .config import Settings
+from .config_editor import list_config_files, read_config_file, save_config_file
 from .db import Database
 from .episodes import delete_episode
 from .observability import reconcile_orphaned_runs, tail_log
 from .publish import Publisher
+
+
+class ConfigUpdate(BaseModel):
+    content: str
+    expected_checksum: str
 
 
 def _json(value: str | None, fallback: Any) -> Any:
@@ -420,5 +428,38 @@ def build_admin_router(
         for line in tail_log(settings.data_dir / "logs" / "radio.jsonl", lines):
             entries.append(_json(line, {"message": line.rstrip()}))
         return entries
+
+    @router.get("/config")
+    def config_files():
+        return {"items": list_config_files(settings), "secrets_managed": False}
+
+    @router.get("/config/{name:path}")
+    def config_detail(name: str):
+        try:
+            return read_config_file(settings, name)
+        except ValueError as exc:
+            raise HTTPException(404, str(exc)) from exc
+
+    @router.put("/config/{name:path}")
+    def config_update(name: str, payload: ConfigUpdate):
+        try:
+            saved = save_config_file(
+                settings,
+                name,
+                payload.content,
+                payload.expected_checksum,
+            )
+        except RuntimeError as exc:
+            raise HTTPException(409, str(exc)) from exc
+        except (ValueError, OSError) as exc:
+            raise HTTPException(422, str(exc)) from exc
+        effects: list[str] = []
+        if name == "sources.yaml" or name.startswith("sources.d/"):
+            Collector(settings, db).sync_sources()
+            effects.append("sources synchronisées")
+        if name == "radio.yaml":
+            Publisher(settings, db).publish()
+            effects.append("site republié")
+        return {"ok": True, "file": saved, "effects": effects}
 
     return router

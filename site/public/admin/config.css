@@ -1,0 +1,125 @@
+.config-intro {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.config-intro p {
+  max-width: 720px;
+  margin: 0;
+  color: var(--studio-muted);
+}
+
+.config-groups {
+  display: grid;
+  gap: 22px;
+  margin-top: 22px;
+}
+
+.config-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.config-row {
+  width: 100%;
+  min-height: 72px;
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(220px, 2fr) auto;
+  align-items: center;
+  gap: 18px;
+  padding: 14px 16px;
+  border: 1px solid var(--studio-line);
+  border-radius: 14px;
+  background: var(--studio-panel);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.config-row:hover,
+.config-row:focus-visible {
+  border-color: var(--studio-accent);
+  outline: none;
+}
+
+.config-row strong,
+.config-row span {
+  display: block;
+}
+
+.config-row span,
+.config-row small {
+  color: var(--studio-muted);
+}
+
+.config-row-meta {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.config-editor {
+  display: grid;
+  gap: 16px;
+}
+
+.config-editor textarea {
+  width: 100%;
+  min-height: min(58vh, 680px);
+  resize: vertical;
+  padding: 16px;
+  border: 1px solid var(--studio-line);
+  border-radius: 14px;
+  background: #11110f;
+  color: #f6f2e8;
+  font: 14px/1.55 ui-monospace, SFMono-Regular, Consolas, monospace;
+  tab-size: 2;
+}
+
+.config-editor textarea:focus {
+  outline: 3px solid color-mix(in srgb, var(--studio-accent) 35%, transparent);
+  border-color: var(--studio-accent);
+}
+
+.config-editor-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.config-editor-actions button {
+  min-height: 46px;
+}
+
+@media (max-width: 680px) {
+  .config-intro,
+  .config-editor-actions {
+    display: grid;
+  }
+
+  .config-row {
+    grid-template-columns: 1fr auto;
+    gap: 7px 12px;
+  }
+
+  .config-row > span {
+    grid-column: 1 / -1;
+  }
+
+  .config-row-meta {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .config-editor textarea {
+    min-height: 52vh;
+    font-size: 13px;
+  }
+
+  .config-editor-actions .primary {
+    width: 100%;
+  }
+}

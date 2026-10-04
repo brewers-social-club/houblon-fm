@@ -38,6 +38,13 @@ RADIO_SESSION_SECRET=change-this-with-32-random-bytes
 Le mot de passe n'est jamais conservé dans le navigateur. Le secret de session signe le cookie
 administrateur ; le changer ferme toutes les sessions existantes.
 
+La section **Configuration** du studio permet de modifier les fichiers YAML gérés (`radio`,
+grille, personnages, antenne, sources, séries vidéo et lexique). Chaque enregistrement est validé,
+protégé contre les écrasements concurrents et sauvegardé dans `data/config-backups/` avant son
+remplacement atomique. Le sidecar monte seul `./config:/config` en lecture-écriture ; nginx ne
+monte ni n'expose ce dossier. Les secrets et le fichier `.env` restent volontairement hors de
+l'interface.
+
 Le mode `mock` produit une démonstration intégrale sans clé API. Pour utiliser le compte
 ChatGPT/Codex connecté sur la machine, lance une fois `codex login` (ou
 `codex login --device-auth` sur un serveur sans navigateur), vérifie avec `codex login status`,

@@ -103,8 +103,10 @@ class Collector:
         ] = {}
 
     def sync_sources(self) -> None:
+        configured = self.settings.sources
+        configured_ids = [str(source["id"]) for source in configured]
         with self.db.transaction() as connection:
-            for source in self.settings.sources:
+            for source in configured:
                 connection.execute(
                     """INSERT INTO source(id,name,kind,url,station,enabled,config_json)
                     VALUES(?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET
@@ -120,6 +122,14 @@ class Collector:
                         json.dumps(source, ensure_ascii=False),
                     ),
                 )
+            if configured_ids:
+                placeholders = ",".join("?" for _ in configured_ids)
+                connection.execute(
+                    f"UPDATE source SET enabled=0 WHERE id NOT IN ({placeholders})",
+                    configured_ids,
+                )
+            else:
+                connection.execute("UPDATE source SET enabled=0")
 
     def _robots_policy(
         self, url: str

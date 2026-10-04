@@ -1,5 +1,6 @@
 import datetime as dt
 import json
+from dataclasses import replace
 from types import SimpleNamespace
 
 import feedparser
@@ -9,6 +10,35 @@ import trafilatura
 from bsc_radio.collect import Collector
 from bsc_radio.db import Database
 from tests.helpers import settings
+
+
+def test_sync_sources_disables_entries_removed_from_configuration(tmp_path):
+    base = settings(tmp_path)
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    (config_dir / "sources.yaml").write_text(
+        """sources:
+  - id: active
+    name: Active
+    kind: rss
+    url: https://active.test/feed
+    station: brasserie
+    enabled: true
+""",
+        encoding="utf-8",
+    )
+    cfg = replace(base, config_dir=config_dir)
+    db = Database(cfg.database)
+    db.migrate()
+    db.execute(
+        "INSERT INTO source(id,name,kind,url,station,enabled) VALUES(?,?,?,?,?,1)",
+        ("removed", "Removed", "rss", "https://removed.test/feed", "brasserie"),
+    )
+
+    Collector(cfg, db).sync_sources()
+
+    assert db.one("SELECT enabled FROM source WHERE id='active'")["enabled"] == 1
+    assert db.one("SELECT enabled FROM source WHERE id='removed'")["enabled"] == 0
 
 
 class FakeResponse:
