@@ -64,3 +64,12 @@ def test_live_player_retries_after_an_early_icecast_404():
     assert "/live.mp3?attempt=${Date.now()}" in script
     assert "Antenne en cours de démarrage — réessayer" in script
     assert "play.textContent = 'Ⅱ'" in script
+
+
+def test_homepage_attempts_live_autoplay_and_recovers_on_first_gesture():
+    script = (Path(__file__).parents[1] / "site/public/assets/app.js").read_text(encoding="utf-8")
+    assert "['/', '/index.html'].includes(window.location.pathname)" in script
+    assert "startLive({ automatic: true })" in script
+    assert "error?.name === 'NotAllowedError'" in script
+    assert "Touchez la page pour activer le direct" in script
+    assert "document.addEventListener('pointerdown', resume)" in script
