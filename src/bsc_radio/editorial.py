@@ -212,7 +212,8 @@ class EditorialPipeline:
         threshold = (dt.datetime.now(dt.UTC) - dt.timedelta(hours=hours)).isoformat()
         orphan_facts = self.db.all(
             """SELECT f.* FROM fact f LEFT JOIN topic_fact tf ON tf.fact_id=f.id
-            WHERE tf.fact_id IS NULL AND f.created_at >= ? ORDER BY f.created_at""",
+            WHERE tf.fact_id IS NULL AND f.reliability > 0 AND f.created_at >= ?
+            ORDER BY f.created_at""",
             (threshold,),
         )
         if not orphan_facts:
@@ -253,9 +254,15 @@ class EditorialPipeline:
                         ) AS source_rank
                     FROM fact f
                     JOIN item i ON i.id=f.item_id
+                    JOIN source source_record ON source_record.id=i.source_id
                     JOIN topic_fact tf ON tf.fact_id=f.id
                     JOIN topic t ON t.id=tf.topic_id
                     WHERE i.published_at >= ?
+                    AND f.reliability > 0
+                    AND (
+                        LOWER(source_record.kind) != 'youtube'
+                        OR json_extract(i.metadata_json, '$.content_source') = 'gemini_video'
+                    )
                     AND NOT EXISTS (
                         SELECT 1
                         FROM sentence used_sentence

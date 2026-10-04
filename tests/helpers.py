@@ -39,6 +39,7 @@ def settings(tmp: Path) -> Settings:
         tts_model="tts",
         embed_model="embed",
         video_model="video",
+        video_daily_max=4,
         tts_daily_limit=100,
         budget_monthly_eur=25.0,
     )

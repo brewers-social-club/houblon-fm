@@ -5,6 +5,7 @@ from types import SimpleNamespace
 
 import feedparser
 import httpx
+import pytest
 import trafilatura
 
 from bsc_radio.collect import Collector
@@ -490,6 +491,7 @@ def test_article_failure_falls_back_to_feed_summary(tmp_path, monkeypatch):
 
 def test_youtube_public_feed_works_without_api_key(tmp_path, monkeypatch):
     cfg = settings(tmp_path)
+    object.__setattr__(cfg, "gemini_api_key", "gemini-secret")
     db = Database(cfg.database)
     db.migrate()
     source = {
@@ -516,6 +518,7 @@ def test_youtube_public_feed_works_without_api_key(tmp_path, monkeypatch):
         ]
     )
     calls = []
+    video_calls = []
 
     def fake_get(url, **kwargs):
         calls.append((url, kwargs))
@@ -523,16 +526,53 @@ def test_youtube_public_feed_works_without_api_key(tmp_path, monkeypatch):
 
     monkeypatch.setattr(feedparser, "parse", lambda _content: parsed)
     monkeypatch.setattr(httpx, "get", fake_get)
+    monkeypatch.setattr(
+        httpx,
+        "post",
+        lambda url, **kwargs: (
+            video_calls.append((url, kwargs))
+            or FakeJsonResponse(
+                {
+                    "interaction": {
+                        "id": "interaction-1",
+                        "steps": [
+                            {
+                                "type": "model_output",
+                                "content": [
+                                    {
+                                        "type": "text",
+                                        "text": "[00:15] La vidéo montre et explique une fermentation "
+                                        "avec des mesures précises. " * 5,
+                                    }
+                                ],
+                            }
+                        ],
+                    }
+                },
+                url=url,
+            )
+        ),
+    )
 
     assert Collector(cfg, db).collect_source(source) == (1, 0)
     assert calls[0][0].endswith("channel_id=UC123")
-    metadata = json.loads(db.one("SELECT metadata_json FROM item")["metadata_json"])
+    row = db.one("SELECT raw_text,metadata_json FROM item")
+    metadata = json.loads(row["metadata_json"])
     assert metadata["collection_mode"] == "public_feed"
+    assert metadata["content_source"] == "gemini_video"
+    assert "Présentation détaillée" not in row["raw_text"]
+    assert video_calls[0][1]["json"]["input"][0] == {
+        "type": "video",
+        "uri": "https://www.youtube.com/watch?v=video123",
+        "processing": "agentic",
+    }
+    assert video_calls[0][1]["headers"]["x-goog-api-key"] == "gemini-secret"
 
 
 def test_youtube_data_api_paginates_without_key_in_url(tmp_path, monkeypatch):
     cfg = settings(tmp_path)
     object.__setattr__(cfg, "youtube_api_key", "youtube-secret")
+    object.__setattr__(cfg, "gemini_api_key", "gemini-secret")
     db = Database(cfg.database)
     db.migrate()
     source = {
@@ -577,11 +617,137 @@ def test_youtube_data_api_paginates_without_key_in_url(tmp_path, monkeypatch):
         return FakeJsonResponse(next(pages), url=url)
 
     monkeypatch.setattr(httpx, "get", fake_get)
+    monkeypatch.setattr(
+        httpx,
+        "post",
+        lambda url, **_kwargs: FakeJsonResponse(
+            {
+                "interaction": {
+                    "steps": [
+                        {
+                            "type": "model_output",
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "Analyse réelle de la vidéo, de son audio et de ses "
+                                    "informations affichées. " * 5,
+                                }
+                            ],
+                        }
+                    ]
+                }
+            },
+            url=url,
+        ),
+    )
 
     assert Collector(cfg, db).collect_source(source) == (1, 0)
     assert len(calls) == 3
     assert all(call[1]["headers"]["X-Goog-Api-Key"] == "youtube-secret" for call in calls)
     assert all("key" not in call[1].get("params", {}) for call in calls)
+
+
+def test_youtube_refuses_metadata_only_collection_without_gemini(tmp_path):
+    cfg = settings(tmp_path)
+    db = Database(cfg.database)
+    db.migrate()
+    source = {
+        "id": "youtube",
+        "name": "YouTube",
+        "kind": "youtube",
+        "url": "https://www.youtube.com/channel/UC123",
+        "channel_id": "UC123",
+    }
+
+    with pytest.raises(RuntimeError, match="GEMINI_API_KEY manque"):
+        Collector(cfg, db).collect_source(source)
+
+
+def test_youtube_refreshes_legacy_metadata_and_neutralizes_old_facts(tmp_path, monkeypatch):
+    cfg = settings(tmp_path)
+    object.__setattr__(cfg, "gemini_api_key", "gemini-secret")
+    db = Database(cfg.database)
+    db.migrate()
+    source = {
+        "id": "youtube",
+        "name": "YouTube",
+        "kind": "youtube",
+        "url": "https://www.youtube.com/channel/UC123",
+        "channel_id": "UC123",
+        "history": "all",
+        "min_content_chars": 10,
+    }
+    insert_source(db, source)
+    now = dt.datetime.now(dt.UTC).isoformat()
+    item_id = db.execute(
+        """INSERT INTO item(source_id,url,title,published_at,collected_at,content_hash,raw_text,
+        status,metadata_json) VALUES(?,?,?,?,?,?,?,'facts',?)""",
+        (
+            source["id"],
+            "https://www.youtube.com/watch?v=legacy",
+            "Ancienne vidéo",
+            now,
+            now,
+            "legacy",
+            "Titre. Description marketing.",
+            json.dumps({"platform": "youtube", "video_id": "legacy"}),
+        ),
+    )
+    fact_id = db.execute(
+        """INSERT INTO fact(item_id,statement,fact_type,reliability,source_url,source_name)
+        VALUES(?,?,?,?,?,?)""",
+        (item_id, "Faux fait de description", "context", 0.9, source["url"], source["name"]),
+    )
+    parsed = SimpleNamespace(
+        entries=[
+            {
+                "yt_videoid": "legacy",
+                "link": "https://www.youtube.com/watch?v=legacy",
+                "published": now,
+                "title": "Ancienne vidéo",
+                "summary": "Description marketing.",
+                "author": "Chaîne",
+            }
+        ]
+    )
+    monkeypatch.setattr(feedparser, "parse", lambda _content: parsed)
+    monkeypatch.setattr(
+        httpx,
+        "get",
+        lambda url, **_kwargs: FakeResponse(content=b"atom", url=url),
+    )
+    monkeypatch.setattr(
+        httpx,
+        "post",
+        lambda url, **_kwargs: FakeJsonResponse(
+            {
+                "interaction": {
+                    "steps": [
+                        {
+                            "type": "model_output",
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "[01:05] Le brasseur mesure une densité de 1,048 puis "
+                                    "explique la fermentation observée à l'écran. " * 4,
+                                }
+                            ],
+                        }
+                    ]
+                }
+            },
+            url=url,
+        ),
+    )
+
+    inserted, skipped = Collector(cfg, db).collect_source(source)
+
+    assert (inserted, skipped) == (0, 1)
+    assert db.one("SELECT reliability FROM fact WHERE id=?", (fact_id,))["reliability"] == 0
+    item = db.one("SELECT status,raw_text,metadata_json FROM item WHERE id=?", (item_id,))
+    assert item["status"] == "new"
+    assert "1,048" in item["raw_text"]
+    assert json.loads(item["metadata_json"])["content_source"] == "gemini_video"
 
 
 def test_meta_collectors_use_bearer_header_and_cursor(tmp_path, monkeypatch):

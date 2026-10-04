@@ -50,6 +50,7 @@ class Settings:
     tts_model: str
     embed_model: str
     video_model: str
+    video_daily_max: int
     tts_daily_limit: int
     budget_monthly_eur: float
 
@@ -92,7 +93,8 @@ class Settings:
             light_model=os.getenv("ANTHROPIC_MODEL_LIGHT", "claude-haiku-4-5"),
             tts_model=os.getenv("GEMINI_TTS_MODEL", "gemini-2.5-flash-preview-tts"),
             embed_model=os.getenv("GEMINI_EMBED_MODEL", "gemini-embedding-001"),
-            video_model=os.getenv("GEMINI_VIDEO_MODEL", "gemini-2.5-flash"),
+            video_model=os.getenv("GEMINI_VIDEO_MODEL", "gemini-3.8-flash"),
+            video_daily_max=int(os.getenv("VIDEO_DAILY_MAX", "4")),
             tts_daily_limit=int(os.getenv("GEMINI_TTS_DAILY_LIMIT", "100")),
             budget_monthly_eur=float(os.getenv("BUDGET_MENSUEL_EUR", "25")),
         )

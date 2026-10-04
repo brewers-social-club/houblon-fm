@@ -170,10 +170,13 @@ durées, saisons, numéros, images et catégories disponibles dans le flux sont 
 `google_grounded`. Des modèles désactivés se trouvent dans
 `config/sources.d/social.example.yaml`.
 
-- **YouTube** : sans clé, le collecteur tente le flux public de la chaîne pour les dernières
-  vidéos, mais YouTube peut ne pas l'exposer. `YOUTUBE_API_KEY` utilise l'API Data officielle,
-  pagine la playlist des publications et importe l'historique exposé par la chaîne
-  (`max_pages`, 50 vidéos par page) ; c'est le mode fiable recommandé.
+- **YouTube** : le flux public de la chaîne repère les dernières vidéos ; `YOUTUBE_API_KEY`
+  permet en plus de paginer l'historique (`max_pages`, 50 vidéos par page). Une vidéo n'est
+  jamais envoyée au pipeline éditorial depuis son titre ou sa description : `GEMINI_API_KEY`
+  est obligatoire et Gemini analyse directement l'URL publique, l'audio, les paroles et les
+  informations affichées à l'écran. `GEMINI_VIDEO_MODEL` vaut `gemini-3.8-flash` par défaut,
+  `video_max_per_run` borne chaque source et `VIDEO_DAILY_MAX` borne la journée entière. Les
+  vidéos restantes sont différées ; un échec d'analyse ne crée aucun contenu de substitution.
 - **Facebook** : nécessite `page_id` et `META_ACCESS_TOKEN`. L'API Graph ne donne accès qu'aux
   Pages et publications autorisées par le jeton ; aucune session web n'est scrapée.
 - **Instagram** : nécessite `ig_user_id` et le même `META_ACCESS_TOKEN`. L'API officielle cible
@@ -184,8 +187,8 @@ durées, saisons, numéros, images et catégories disponibles dans le flux sont 
   publique — mais son équivalent officiel exploitable.
 
 Les appels authentifiés placent les clés dans des en-têtes HTTP afin qu'elles ne finissent ni
-dans les URL ni dans les logs. `META_GRAPH_VERSION` et `GEMINI_SEARCH_MODEL` permettent de faire
-évoluer les versions sans modifier le code.
+dans les URL ni dans les logs. `META_GRAPH_VERSION`, `GEMINI_SEARCH_MODEL` et
+`GEMINI_VIDEO_MODEL` permettent de faire évoluer les versions sans modifier le code.
 
 ## Habillage et direct vivant
 

@@ -224,6 +224,53 @@ def test_does_not_reuse_facts_already_reserved_by_an_episode(tmp_path: Path):
         pipeline.write_episode("journal")
 
 
+def test_metadata_only_youtube_facts_never_reach_an_episode(tmp_path: Path):
+    cfg = settings(tmp_path)
+    db = Database(cfg.database)
+    db.migrate()
+    now = dt.datetime.now(dt.UTC).isoformat()
+    db.execute(
+        """INSERT INTO source(id,name,kind,url,station)
+        VALUES('youtube','YouTube','youtube','https://youtube.test/channel','brassage')"""
+    )
+    item_id = db.execute(
+        """INSERT INTO item(source_id,url,title,published_at,collected_at,content_hash,raw_text,
+        status,metadata_json) VALUES(?,?,?,?,?,?,?,'facts',?)""",
+        (
+            "youtube",
+            "https://www.youtube.com/watch?v=metadata",
+            "Titre racoleur",
+            now,
+            now,
+            "metadata",
+            "Titre et description uniquement.",
+            json.dumps({"platform": "youtube", "collection_mode": "public_feed"}),
+        ),
+    )
+    topic_id = db.execute(
+        """INSERT INTO topic(title,summary,station,first_seen_at,last_seen_at)
+        VALUES(?,?,?,?,?)""",
+        ("Sujet YouTube", "Résumé", "brassage", now, now),
+    )
+    fact_id = db.execute(
+        """INSERT INTO fact(item_id,statement,fact_type,reliability,source_url,source_name)
+        VALUES(?,?,?,?,?,?)""",
+        (
+            item_id,
+            "La description promet une bière incroyable.",
+            "context",
+            0.9,
+            "https://www.youtube.com/watch?v=metadata",
+            "YouTube",
+        ),
+    )
+    db.execute("INSERT INTO topic_fact(topic_id,fact_id) VALUES(?,?)", (topic_id, fact_id))
+
+    facts = EditorialPipeline(cfg, db, MockEditorialProvider()).facts_for_episode()
+
+    assert fact_id not in {fact["id"] for fact in facts}
+
+
 def test_balances_new_facts_between_sources(tmp_path: Path):
     cfg = settings(tmp_path)
     db = Database(cfg.database)

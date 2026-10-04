@@ -9,6 +9,7 @@ sources:
     station: brasserie
     history: all
     max_pages: 20
+    video_max_per_run: 2
     min_content_chars: 20
 
   - id: facebook-exemple

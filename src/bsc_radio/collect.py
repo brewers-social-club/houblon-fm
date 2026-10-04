@@ -570,6 +570,10 @@ class Collector:
         return payload
 
     def _collect_youtube(self, source: dict[str, Any]) -> tuple[int, int, dict[str, int]]:
+        if not self.settings.gemini_api_key:
+            raise RuntimeError(
+                "YouTube Video: GEMINI_API_KEY manque; aucune collecte par métadonnées autorisée"
+            )
         channel_id = str(source.get("channel_id") or "").strip()
         if not channel_id:
             match = re.search(r"/channel/([A-Za-z0-9_-]+)", str(source.get("url", "")))
@@ -612,7 +616,7 @@ class Collector:
                         },
                     }
                 )
-            return self._store_records(source, records)
+            return self._store_youtube_records(source, records)
 
         headers = {
             "User-Agent": self.settings.user_agent,
@@ -682,7 +686,199 @@ class Collector:
             page_token = payload.get("nextPageToken")
             if not page_token:
                 break
-        return self._store_records(source, records)
+        return self._store_youtube_records(source, records)
+
+    @staticmethod
+    def _interaction_text(payload: dict[str, Any]) -> tuple[str, str | None]:
+        interaction = payload.get("interaction") or payload
+        texts: list[str] = []
+        for step in interaction.get("steps") or []:
+            if not isinstance(step, dict) or step.get("type") != "model_output":
+                continue
+            for block in step.get("content") or []:
+                if isinstance(block, dict) and block.get("type") == "text" and block.get("text"):
+                    texts.append(str(block["text"]))
+        if not texts and isinstance(interaction.get("output"), str):
+            texts.append(interaction["output"])
+        return "\n".join(texts).strip(), interaction.get("id")
+
+    def _analyze_youtube_video(
+        self, source: dict[str, Any], record: dict[str, Any]
+    ) -> tuple[str, dict[str, Any]]:
+        model = str(source.get("video_model") or self.settings.video_model).strip()
+        if not re.fullmatch(r"[A-Za-z0-9._-]+", model):
+            raise RuntimeError("YouTube Video: modèle Gemini invalide")
+        url = str(record["url"])
+        prompt = (
+            "Analyse réellement cette vidéo YouTube pour une rédaction radio brassicole française. "
+            "Appuie-toi sur ce qui est dit, entendu et affiché à l'écran, jamais sur le seul titre "
+            "ou la description. Produis en français un compte rendu factuel et détaillé : sujets "
+            "traités, affirmations importantes, étapes, ingrédients, mesures, résultats, chiffres et "
+            "informations visibles dans les tableaux ou incrustations. Ajoute des horodatages [MM:SS] "
+            "aux passages importants. Distingue explicitement les observations, les opinions de "
+            "l'auteur et les hypothèses. Ignore les appels à s'abonner, le sponsoring et le remplissage. "
+            "N'invente rien et signale clairement toute partie impossible à analyser.\n\n"
+            f"Titre fourni uniquement pour identifier la vidéo : {record.get('title', '')}"
+        )
+        response = httpx.post(
+            "https://generativelanguage.googleapis.com/v1beta/interactions",
+            headers={
+                "x-goog-api-key": self.settings.gemini_api_key,
+                "User-Agent": self.settings.user_agent,
+            },
+            json={
+                "model": model,
+                "input": [
+                    {"type": "video", "uri": url, "processing": "agentic"},
+                    {"type": "text", "text": prompt},
+                ],
+            },
+            timeout=600,
+        )
+        payload = self._api_payload(response, "Gemini Video")
+        text, interaction_id = self._interaction_text(payload)
+        if len(text) < int(source.get("min_video_analysis_chars", 200)):
+            raise RuntimeError("Gemini Video: analyse textuelle absente ou trop courte")
+        return text, {
+            "content_source": "gemini_video",
+            "analysis_model": model,
+            "analysis_mode": "agentic",
+            "interaction_id": interaction_id,
+            "analyzed_at": dt.datetime.now(dt.UTC).isoformat(),
+        }
+
+    @staticmethod
+    def _has_video_analysis(metadata_json: str | None) -> bool:
+        try:
+            metadata = json.loads(metadata_json or "{}")
+        except (TypeError, ValueError, json.JSONDecodeError):
+            return False
+        return metadata.get("content_source") == "gemini_video"
+
+    def _video_analyses_today(self) -> int:
+        threshold = dt.datetime.now(dt.UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+        row = self.db.one(
+            """SELECT COUNT(*) count FROM item i JOIN source s ON s.id=i.source_id
+            WHERE LOWER(s.kind)='youtube' AND i.collected_at>=?
+            AND json_extract(i.metadata_json, '$.content_source')='gemini_video'""",
+            (threshold.isoformat(),),
+        )
+        return int(row["count"] if row else 0)
+
+    def _store_youtube_records(
+        self, source: dict[str, Any], records: list[dict[str, Any]]
+    ) -> tuple[int, int, dict[str, int]]:
+        # Tout ancien item construit depuis titre/description est mis en quarantaine,
+        # ainsi que les faits qui en avaient déjà été extraits.
+        with self.db.transaction() as connection:
+            connection.execute(
+                """UPDATE fact SET reliability=0 WHERE item_id IN (
+                    SELECT id FROM item WHERE source_id=?
+                    AND COALESCE(json_extract(metadata_json, '$.content_source'), '')!='gemini_video'
+                )""",
+                (source["id"],),
+            )
+            connection.execute(
+                """UPDATE item SET status='video_pending' WHERE source_id=?
+                AND COALESCE(json_extract(metadata_json, '$.content_source'), '')!='gemini_video'""",
+                (source["id"],),
+            )
+        daily_remaining = max(0, self.settings.video_daily_max - self._video_analyses_today())
+        per_run = max(0, int(source.get("video_max_per_run", 2)))
+        analysis_budget = min(daily_remaining, per_run)
+        inserted = skipped = attempted = 0
+        reasons: Counter[str] = Counter()
+        now = dt.datetime.now(dt.UTC)
+        max_age = self._max_age(source)
+
+        for record in records:
+            url = str(record.get("url") or "").strip()
+            published = record.get("published")
+            if isinstance(published, str):
+                published = _date(published)
+            if not url or not isinstance(published, dt.datetime):
+                reasons["invalid_video_record"] += 1
+                skipped += 1
+                continue
+            published = published.astimezone(dt.UTC)
+            if max_age is not None and now - published > max_age:
+                reasons["too_old"] += 1
+                skipped += 1
+                continue
+            existing = self.db.one(
+                "SELECT id,metadata_json FROM item WHERE url=?", (url,)
+            )
+            if existing and self._has_video_analysis(existing["metadata_json"]) and not source.get(
+                "refresh_video_analysis", False
+            ):
+                reasons["duplicate"] += 1
+                skipped += 1
+                continue
+            if attempted >= analysis_budget:
+                reasons["video_analysis_deferred"] += 1
+                skipped += 1
+                continue
+            attempted += 1
+            try:
+                text, analysis_metadata = self._analyze_youtube_video(source, record)
+            except Exception as exc:
+                error = str(redact(str(exc)))
+                self.db.execute(
+                    "INSERT INTO incident(kind,message,context_json) VALUES(?,?,?)",
+                    (
+                        "collect_video",
+                        error,
+                        json.dumps({"source": source["id"], "url": sanitize_url(url)}),
+                    ),
+                )
+                reasons["video_analysis_failed"] += 1
+                skipped += 1
+                continue
+            metadata = dict(record.get("metadata") or {})
+            metadata.update(analysis_metadata)
+            metadata_json = json.dumps(metadata, ensure_ascii=False, sort_keys=True)
+            digest = hashlib.sha256(text.encode()).hexdigest()
+            if existing:
+                with self.db.transaction() as connection:
+                    # Ces faits venaient du titre/description : ils restent consultables dans
+                    # l'historique, mais ne doivent plus jamais nourrir une nouvelle émission.
+                    connection.execute(
+                        "UPDATE fact SET reliability=0 WHERE item_id=?", (existing["id"],)
+                    )
+                    connection.execute(
+                        """UPDATE item SET title=?,author=?,published_at=?,collected_at=?,
+                        content_hash=?,raw_text=?,metadata_json=?,status='new' WHERE id=?""",
+                        (
+                            record.get("title") or "Vidéo YouTube",
+                            record.get("author"),
+                            published.isoformat(),
+                            now.isoformat(),
+                            digest,
+                            text,
+                            metadata_json,
+                            existing["id"],
+                        ),
+                    )
+                reasons["video_analysis_refreshed"] += 1
+                skipped += 1
+                continue
+            self.db.execute(
+                """INSERT INTO item(source_id,url,title,author,published_at,collected_at,
+                content_hash,raw_text,status,metadata_json) VALUES(?,?,?,?,?,?,?,?,'new',?)""",
+                (
+                    source["id"],
+                    url,
+                    record.get("title") or "Vidéo YouTube",
+                    record.get("author"),
+                    published.isoformat(),
+                    now.isoformat(),
+                    digest,
+                    text,
+                    metadata_json,
+                ),
+            )
+            inserted += 1
+        return inserted, skipped, dict(reasons)
 
     def _meta_pages(
         self, object_id: str, edge: str, fields: str, source: dict[str, Any]
