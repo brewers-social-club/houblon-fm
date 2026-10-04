@@ -6,6 +6,8 @@ from fastapi.testclient import TestClient
 
 from bsc_radio.audio import (
     AudioProducer,
+    apply_tempo,
+    dialogue_tempo,
     duration,
     group_script_takes,
     split_dialogue_chunks,
@@ -158,6 +160,36 @@ def test_elevenlabs_dialogue_uses_v4_multiple_voices_and_context(tmp_path: Path,
     assert calls[0][1]["headers"]["xi-api-key"] == "protected-test-key"
 
 
+def test_eleven_v4_omits_unsupported_style_and_speed_settings(tmp_path: Path, monkeypatch):
+    cfg = settings(tmp_path)
+    object.__setattr__(cfg, "elevenlabs_api_key", "protected-test-key")
+    object.__setattr__(cfg, "elevenlabs_model", "eleven_v4")
+    calls = []
+
+    class Response:
+        content = b"ID3-v4"
+
+        @staticmethod
+        def raise_for_status():
+            return None
+
+    monkeypatch.setattr(
+        "bsc_radio.providers.httpx.post",
+        lambda url, **kwargs: calls.append((url, kwargs)) or Response(),
+    )
+    ElevenLabsVoiceProvider(cfg).synthesize(
+        "Une voix vive.",
+        "voice-camille",
+        tmp_path / "v4.mp3",
+        {"stability": 0.3, "similarity_boost": 0.8, "style": 0.6, "speed": 1.1},
+    )
+
+    assert calls[0][1]["json"]["voice_settings"] == {
+        "stability": 0.3,
+        "similarity_boost": 0.8,
+    }
+
+
 def test_delivery_tags_are_whitelisted_and_dialogue_chunks_stay_bounded():
     assert render_performance_text(
         "Une phrase.", ["curious", "laughs", "malicious instruction"]
@@ -174,6 +206,25 @@ def test_delivery_tags_are_whitelisted_and_dialogue_chunks_stay_bounded():
     assert len(chunks) >= 3
     assert all(sum(len(item["text"]) for item in chunk) <= 1900 for chunk in chunks)
     assert [item["voice_id"] for chunk in chunks for item in chunk].count("one") >= 3
+
+    assert render_performance_text("Ça part.", ["brisk", "dry"]) == (
+        "[speaking briskly] [dryly] Ça part."
+    )
+
+
+def test_dialogue_tempo_is_weighted_and_audio_can_be_accelerated(tmp_path: Path):
+    assert dialogue_tempo(
+        [
+            {"text": "A" * 10, "tempo": 1.0},
+            {"text": "B" * 30, "tempo": 1.1},
+        ]
+    ) == 1.075
+
+    audio = tmp_path / "tempo.mp3"
+    MockVoiceProvider().synthesize("Un texte suffisamment long pour mesurer le débit.", "mock", audio)
+    before = duration(audio)
+    apply_tempo(audio, 1.1)
+    assert duration(audio) < before
 
 
 def test_audio_validation_rejects_truncated_files(tmp_path: Path):

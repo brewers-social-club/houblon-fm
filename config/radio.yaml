@@ -10,3 +10,4 @@ raw_text_retention_days: 30
 item_max_age_days: null
 topic_window_hours: 72
 monthly_budget_eur: 25
+speech_words_per_minute: 150

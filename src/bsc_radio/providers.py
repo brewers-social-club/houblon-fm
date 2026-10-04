@@ -294,6 +294,10 @@ class ElevenLabsVoiceProvider:
         if isinstance(style, dict):
             allowed = {"stability", "similarity_boost", "style", "speed", "use_speaker_boost"}
             voice_settings.update({key: value for key, value in style.items() if key in allowed})
+        if self.model.startswith("eleven_v4"):
+            voice_settings = {
+                key: voice_settings[key] for key in ("stability", "similarity_boost")
+            }
         response = httpx.post(
             f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}",
             params={"output_format": "mp3_44100_128"},

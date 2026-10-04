@@ -1,32 +1,32 @@
 presenter:
   name: Camille
-  description: Présentatrice fictive, claire, chaleureuse et factuelle.
+  description: Présentatrice fictive, vive, chaleureuse, spontanée et factuelle. Elle relance vite et aime l'humour complice.
   aliases: [animatrice, présentatrice]
   voice:
     gemini: Kore
     elevenlabs: O31r762Gb3WFygrEOGh0
-  performance: {stability: 0.38, similarity_boost: 0.78, style: 0.45, speed: 1.04, use_speaker_boost: true}
+  performance: {stability: 0.32, similarity_boost: 0.78, style: 0.5, speed: 1.1, use_speaker_boost: true}
 consultant:
   name: Marcel
-  description: Maître brasseur fictif, pédagogue et précis.
+  description: Maître brasseur fictif, pédagogue, précis et pince-sans-rire. Il répond avec conviction et des chutes sèches.
   aliases: [expert, maître brasseur]
   voice:
     gemini: Orus
     elevenlabs: hqfrgApggtO1785R4Fsn
-  performance: {stability: 0.52, similarity_boost: 0.78, style: 0.28, speed: 0.96, use_speaker_boost: true}
+  performance: {stability: 0.42, similarity_boost: 0.78, style: 0.36, speed: 1.06, use_speaker_boost: true}
 storyteller:
   name: Jeanne
-  description: Zythologue fictive, vive et sensible à l'histoire.
+  description: Zythologue fictive, vive, malicieuse et sensible à l'histoire. Elle raconte avec relief et ironie légère.
   aliases: [zythologue, narratrice]
   voice:
     gemini: Aoede
     elevenlabs: liiuwXIkU9JRzMLLqlt9
-  performance: {stability: 0.44, similarity_boost: 0.76, style: 0.38, speed: 0.98, use_speaker_boost: true}
+  performance: {stability: 0.36, similarity_boost: 0.76, style: 0.46, speed: 1.07, use_speaker_boost: true}
 audience:
   name: Noé
-  description: Porte-parole fictif des auditeurs, naturel et direct.
+  description: Porte-parole fictif des auditeurs, naturel, direct et joueur. Il réagit franchement sans cabotiner.
   aliases: [auditeur, public]
   voice:
     gemini: Puck
     elevenlabs: n1u6R6yj3qEpDLH3liBh
-  performance: {stability: 0.34, similarity_boost: 0.74, style: 0.5, speed: 1.06, use_speaker_boost: true}
+  performance: {stability: 0.28, similarity_boost: 0.74, style: 0.56, speed: 1.12, use_speaker_boost: true}

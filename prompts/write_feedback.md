@@ -8,6 +8,7 @@ utilise `fact_ids: []`. Les transitions, mentions légales et conclusions utilis
 vides. N'emploie jamais un identifiant absent de l'entrée.
 
 Varie les formulations : lecture courte, réaction chaleureuse, question reprise puis réponse.
+Le duo peut rire avec l'auditeur ou pratiquer l'auto-dérision, jamais se moquer de son message.
 Ne promets rien au nom de la radio. Si peu de messages sont fournis, fais une édition courte et
 honnête au lieu de répéter ou de remplir artificiellement. Remercie les auditeurs et invite-les à
 laisser un avis sur le site, sans incitation à consommer de l'alcool.

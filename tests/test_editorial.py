@@ -174,9 +174,17 @@ def test_all_editorial_formats_have_prompts_filters_roles_and_duration_context(t
         _, facts, context = provider.calls[-1]
         assert context["format"]["allowed_characters"] == cfg.schedule["formats"][fmt]["voices"]
         assert context["format"]["target_words"][0] < context["format"]["target_words"][1]
+        assert context["format"]["speech_words_per_minute"] == 150
         if fmt in samples:
             assert any(fmt in fact["source_id"] for fact in facts)
         assert (cfg.root / "prompts" / f"write_{fmt}.md").exists()
+
+
+def test_common_prompt_requires_lively_humorous_delivery():
+    prompt = Path("prompts/common.md").read_text(encoding="utf-8")
+    assert "vrai fil humoristique" in prompt
+    assert "une à trois répliques" in prompt
+    assert "`brisk`" in prompt and "`deadpan`" in prompt
 
 
 def test_week_can_recap_a_fact_already_used_by_journal(tmp_path: Path):

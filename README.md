@@ -68,8 +68,8 @@ n'embarque volontairement ni le CLI ni ses identifiants.
 
 Pour une vraie voix, configurez `RADIO_TTS_PROVIDER=elevenlabs` avec
 `ELEVENLABS_API_KEY`, ou `RADIO_TTS_PROVIDER=gemini` avec `GEMINI_API_KEY`. Le provider
-ElevenLabs utilise par défaut Adam, `eleven_v4`, un style à `0.6` et produit du MP3
-128 kb/s. Chaque personnage peut toutefois utiliser sa propre voix dans
+ElevenLabs utilise `eleven_v4` et produit du MP3 128 kb/s. Chaque personnage utilise sa propre
+voix dans
 `config/characters.yaml`, avec une entrée par fournisseur :
 
 ```yaml
@@ -86,13 +86,20 @@ permet d'écouter un personnage, et `radio revoice <id>` remplace atomiquement l
 émission existante avec le casting courant.
 
 Les scripts récents séparent le texte factuel et jusqu'à deux directions de jeu contrôlées dans
-`delivery` : rire, soupir, curiosité, surprise, chuchotement ou emphase. Ces indications ne passent
+`delivery` : énergie, rythme vif, humour pince-sans-rire, rire, soupir, curiosité, surprise,
+chuchotement ou emphase. Ces indications ne passent
 jamais dans la vérification des faits. Avec Eleven v4, les échanges sont envoyés à l'API
 Text-to-Dialogue par séquences de moins de 2 000 caractères afin que les voix partagent le contexte
 et réagissent naturellement. Les émissions plus longues sont raccordées avec un contexte
 avant/après ; si Text-to-Dialogue échoue, la production retombe sur les prises séparées sans perdre
 l'épisode. Les anciens scripts sans `delivery` restent compatibles. `radio revoice <id>` peut les
 revocaliser avec v4, mais ne leur invente pas rétroactivement de directions de jeu.
+
+Le rythme éditorial cible est défini par `speech_words_per_minute` dans `config/radio.yaml`
+(150 par défaut). Eleven v4 Dialogue n'acceptant pas le curseur `speed`, le réglage `speed` de
+chaque personnage est appliqué après génération avec un changement de tempo borné entre 0,7× et
+1,2×. Les prompts imposent des répliques courtes et un fil humoristique proportionnel à la durée,
+sans humour sur les personnes réelles, la santé, les mineurs ou l'abus d'alcool.
 
 ## Commandes
 
@@ -213,7 +220,9 @@ prévisualisations restent protégées par la session administrateur et ne rende
 
 Le sidecar déroule automatiquement `clock` et saute sans erreur les catégories encore vides.
 Chaque personnage possède ses propres réglages ElevenLabs (`stability`, `similarity_boost`,
-`style`, `speed`) dans `config/characters.yaml`. Les morceaux sont demandés sans voix, sans
+`style`, `speed`) dans `config/characters.yaml`. Avec Eleven v4, `stability` et
+`similarity_boost` sont envoyés au TTS classique, tandis que `speed` est appliqué au MP3 après
+génération ; `style` reste utile aux anciens modèles compatibles. Les morceaux sont demandés sans voix, sans
 référence à un artiste ou à une chanson existante et avec signature C2PA. Les droits commerciaux
 d'Eleven Music dépendent néanmoins de l'abonnement ElevenLabs utilisé : ils doivent être vérifiés
 avant une diffusion commerciale.

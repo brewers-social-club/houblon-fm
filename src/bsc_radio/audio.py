@@ -54,18 +54,18 @@ def _split_long_text(text: str, limit: int) -> list[str]:
 
 
 def split_dialogue_chunks(
-    inputs: list[dict[str, str]], limit: int = DIALOGUE_CHARACTER_LIMIT
-) -> list[list[dict[str, str]]]:
+    inputs: list[dict[str, object]], limit: int = DIALOGUE_CHARACTER_LIMIT
+) -> list[list[dict[str, object]]]:
     """Keep complete turns when possible and stay below ElevenLabs' hard limit."""
-    expanded: list[dict[str, str]] = []
+    expanded: list[dict[str, object]] = []
     for item in inputs:
-        for text in _split_long_text(item["text"], limit):
-            expanded.append({"voice_id": item["voice_id"], "text": text})
-    chunks: list[list[dict[str, str]]] = []
-    current: list[dict[str, str]] = []
+        for text in _split_long_text(str(item["text"]), limit):
+            expanded.append({**item, "text": text})
+    chunks: list[list[dict[str, object]]] = []
+    current: list[dict[str, object]] = []
     size = 0
     for item in expanded:
-        length = len(item["text"])
+        length = len(str(item["text"]))
         if current and size + length > limit:
             chunks.append(current)
             current = []
@@ -92,6 +92,38 @@ def validate_spoken_audio(path: Path, text: str) -> float:
 
 def _run(command: list[str]) -> None:
     subprocess.run(command, check=True, capture_output=True, text=True)
+
+
+def apply_tempo(path: Path, tempo: float) -> None:
+    """Accelerate a generated take without asking Eleven v4 for an unsupported speed setting."""
+    tempo = max(0.7, min(1.2, float(tempo)))
+    if abs(tempo - 1.0) < 0.005:
+        return
+    accelerated = path.with_name(f"{path.stem}-tempo{path.suffix}")
+    _run(
+        [
+            "ffmpeg",
+            "-y",
+            "-loglevel",
+            "error",
+            "-i",
+            str(path),
+            "-filter:a",
+            f"atempo={tempo:.3f}",
+            "-b:a",
+            "128k",
+            str(accelerated),
+        ]
+    )
+    accelerated.replace(path)
+
+
+def dialogue_tempo(inputs: list[dict[str, object]]) -> float:
+    weighted = [
+        (len(str(item.get("text", ""))), float(item.get("tempo", 1.0))) for item in inputs
+    ]
+    total = sum(length for length, _ in weighted)
+    return sum(length * tempo for length, tempo in weighted) / total if total else 1.0
 
 
 def duration(path: Path) -> float:
@@ -154,8 +186,8 @@ class AudioProducer:
             text = text.replace(term, lexicon[term])
         return text
 
-    def _dialogue_inputs(self, lines: list[dict[str, object]]) -> list[dict[str, str]]:
-        inputs: list[dict[str, str]] = []
+    def _dialogue_inputs(self, lines: list[dict[str, object]]) -> list[dict[str, object]]:
+        inputs: list[dict[str, object]] = []
         for line in lines:
             _, character = resolve_character(self.settings.characters, line["character"])
             text = render_performance_text(
@@ -167,6 +199,7 @@ class AudioProducer:
                         character, "elevenlabs", self.settings.elevenlabs_voice_id
                     ),
                     "text": text,
+                    "tempo": float(character.get("performance", {}).get("speed", 1.0)),
                 }
             )
         return inputs
@@ -193,13 +226,18 @@ class AudioProducer:
                 previous_text=previous_text,
                 future_text=future_text,
             )
-            validate_spoken_audio(part, " ".join(item["text"] for item in chunk))
+            apply_tempo(part, dialogue_tempo(chunk))
+            validate_spoken_audio(part, " ".join(str(item["text"]) for item in chunk))
             parts.append(part)
         return parts
 
     def _sequential_parts(self, lines: list[dict[str, object]], temp: Path) -> list[Path]:
         expressive = self.settings.tts_provider == "elevenlabs" and self.settings.elevenlabs_model.startswith(
             ("eleven_v3", "eleven_v4")
+        )
+        needs_tempo_postprocess = (
+            self.settings.tts_provider == "elevenlabs"
+            and self.settings.elevenlabs_model.startswith("eleven_v4")
         )
         prepared = [
             {
@@ -232,6 +270,8 @@ class AudioProducer:
                     f"Personnage fictif: {character['description']}"
                 ),
             )
+            if needs_tempo_postprocess:
+                apply_tempo(part, float(character.get("performance", {}).get("speed", 1.0)))
             validate_spoken_audio(part, spoken)
             parts.append(part)
         return parts

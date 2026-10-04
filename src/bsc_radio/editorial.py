@@ -332,13 +332,18 @@ class EditorialPipeline:
         format_config = dict(self.settings.schedule.get("formats", {}).get(fmt, {}))
         min_minutes = float(format_config.get("min_minutes", 1))
         max_minutes = float(format_config.get("max_minutes", min_minutes + 1))
+        words_per_minute = int(self.settings.radio.get("speech_words_per_minute", 150))
         allowed_roles = list(format_config.get("voices", ["presenter"]))
         context["format"] = {
             "id": fmt,
             "label": format_config.get("label", fmt.title()),
             "fresh": bool(format_config.get("fresh", True)),
             "allowed_characters": allowed_roles,
-            "target_words": [round(min_minutes * 135), round(max_minutes * 135)],
+            "target_words": [
+                round(min_minutes * words_per_minute),
+                round(max_minutes * words_per_minute),
+            ],
+            "speech_words_per_minute": words_per_minute,
         }
         script = canonicalize_script(
             self.provider.write(fmt, facts, context),
@@ -373,15 +378,17 @@ class EditorialPipeline:
         context["feedback_count"] = len(material)
         format_config = dict(self.settings.schedule.get("formats", {}).get("feedback", {}))
         allowed_roles = list(format_config.get("voices", ["audience", "presenter"]))
+        words_per_minute = int(self.settings.radio.get("speech_words_per_minute", 150))
         context["format"] = {
             "id": "feedback",
             "label": format_config.get("label", "Le Courrier des auditeurs"),
             "fresh": False,
             "allowed_characters": allowed_roles,
             "target_words": [
-                round(float(format_config.get("min_minutes", 1)) * 135),
-                round(float(format_config.get("max_minutes", 2)) * 135),
+                round(float(format_config.get("min_minutes", 1)) * words_per_minute),
+                round(float(format_config.get("max_minutes", 2)) * words_per_minute),
             ],
+            "speech_words_per_minute": words_per_minute,
         }
         raw_script = self.provider.write("feedback", material, context)
         for line in raw_script:
