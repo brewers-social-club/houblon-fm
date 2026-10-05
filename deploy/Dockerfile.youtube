@@ -1,0 +1,12 @@
+FROM debian:bookworm-slim
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates curl ffmpeg python3 \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY deploy/youtube-live.sh /usr/local/bin/youtube-live
+COPY deploy/redact-ffmpeg.py /usr/local/bin/redact-ffmpeg
+
+RUN chmod 0755 /usr/local/bin/youtube-live /usr/local/bin/redact-ffmpeg
+
+ENTRYPOINT ["/usr/local/bin/youtube-live"]

@@ -23,6 +23,7 @@ docker compose up --build
 
 - site : <http://localhost:8080>
 - direct Icecast : <http://localhost:8000/live.mp3>
+- relais YouTube Live : profil Compose optionnel `youtube`
 - API : <http://localhost:8081/health>
 - administration : <http://localhost:8080/admin/> (session applicative)
 
@@ -239,6 +240,28 @@ collecte -> faits -> sujets -> écriture -> vérification -> voix -> publication
 
 Le pod local reproduit les quatre rôles de production : Icecast, Liquidsoap, nginx et
 sidecar Python. Les étapes de contenu restent des commandes déterministes et rejouables.
+
+### Relais YouTube Live
+
+Le profil Compose `youtube` ajoute un encodeur FFmpeg sans modifier le direct Icecast. Il lit
+`live.mp3`, compose une vidéo 720p30 à partir du visuel Houblon FM et envoie le résultat en RTMPS
+avec H.264 CBR 4 Mbit/s, images clés toutes les deux secondes et AAC stéréo 128 kbit/s.
+
+Créer une clé de flux personnalisée dans YouTube Live Control Room, activer l'auto-start et
+l'auto-stop si le direct doit suivre automatiquement l'encodeur, puis fournir la clé uniquement
+via `YOUTUBE_STREAM_KEY` dans le fichier `.env` local non versionné. La clé ne doit jamais être
+placée dans Git, une commande, un ticket ou un journal.
+
+```bash
+docker compose --profile youtube up -d --build youtube-live
+docker compose ps youtube-live
+docker compose logs --tail 50 youtube-live
+```
+
+`YOUTUBE_RTMPS_URL` vaut par défaut `rtmps://a.rtmps.youtube.com:443/live2`. Si Live Control Room
+fournit une autre URL RTMPS, recopier uniquement cette URL dans `.env`. Le service attend que le
+flux Icecast réponde, masque la clé dans les diagnostics FFmpeg et redémarre automatiquement après
+une coupure.
 
 ## Sécurité éditoriale
 

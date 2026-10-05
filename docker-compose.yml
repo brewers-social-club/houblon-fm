@@ -29,6 +29,30 @@ services:
     env_file: .env
     volumes: ["./data:/data", "./deploy/liquidsoap.liq:/radio.liq:ro"]
     command: ["liquidsoap","/radio.liq"]
+  youtube-live:
+    profiles: ["youtube"]
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.youtube
+    depends_on:
+      icecast:
+        condition: service_started
+      liquidsoap:
+        condition: service_started
+    restart: unless-stopped
+    environment:
+      YOUTUBE_STREAM_KEY: ${YOUTUBE_STREAM_KEY:-}
+      YOUTUBE_RTMPS_URL: ${YOUTUBE_RTMPS_URL:-rtmps://a.rtmps.youtube.com:443/live2}
+      YOUTUBE_AUDIO_URL: http://icecast:8000/live.mp3
+      YOUTUBE_ARTWORK: /artwork/houblon-fm-logo.png
+    volumes:
+      - ./site/public/assets/houblon-fm-logo-v3.png:/artwork/houblon-fm-logo.png:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -x ffmpeg >/dev/null"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
   web:
     image: nginx:1.27-alpine
     depends_on: [sidecar, icecast]
