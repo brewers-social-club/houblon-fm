@@ -45,3 +45,35 @@ public qu'après ce contrôle. L'arrêt ciblé n'interrompt pas Icecast :
 ```bash
 docker compose stop youtube-live
 ```
+
+## Programmation systemd utilisateur
+
+La collecte et les formats Houblon FM sont planifiés par des timers systemd utilisateur versionnés
+dans `deploy/systemd/user/`. Ils utilisent `Persistent=true` : une échéance manquée pendant un arrêt
+est rejouée au prochain démarrage du gestionnaire utilisateur. Le linger du compte `florian` doit
+rester activé afin que les timers fonctionnent sans session interactive.
+
+Installer ou mettre à jour la grille :
+
+```bash
+deploy/install-systemd-schedule.sh
+systemctl --user list-timers --all 'houblon-radio-*'
+```
+
+Les services écrivent directement dans le journal utilisateur :
+
+```bash
+journalctl --user -u houblon-radio-collect.service
+journalctl --user -u 'houblon-radio-format@*.service'
+```
+
+`deploy/run-format.sh` conserve son comportement détaché lors d'un lancement manuel. Les unités
+systemd définissent `RADIO_RUN_FOREGROUND=1` afin d'exécuter le pipeline dans le service supervisé,
+sans créer une seconde unité transitoire. Ne pas conserver en parallèle les anciennes entrées cron
+Houblon FM, sous peine de lancer chaque format deux fois.
+
+Les tâches planifiées et les lancements manuels de formats attendent jusqu'à six heures sur
+`data/scheduler.lock`. Ce verrou sérialise les rattrapages `Persistent=true` et évite de perdre un
+format si une collecte ou une autre génération est déjà active. Le journal planifié conserve sa
+fenêtre historique de 96 heures ; les autres formats utilisent les valeurs par défaut de
+`deploy/run-format.sh`.

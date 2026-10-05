@@ -1,0 +1,12 @@
+[Unit]
+Description=Houblon FM - La Recette du samedi à 18:00
+
+[Timer]
+OnCalendar=Sat *-*-* 18:00:00 Europe/Paris
+Persistent=true
+AccuracySec=1min
+RandomizedDelaySec=0
+Unit=houblon-radio-format@recipe.service
+
+[Install]
+WantedBy=timers.target

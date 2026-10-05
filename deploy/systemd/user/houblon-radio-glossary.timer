@@ -1,0 +1,12 @@
+[Unit]
+Description=Houblon FM - Le mot du brasseur du mercredi à 18:30
+
+[Timer]
+OnCalendar=Wed *-*-* 18:30:00 Europe/Paris
+Persistent=true
+AccuracySec=1min
+RandomizedDelaySec=0
+Unit=houblon-radio-format@glossary.service
+
+[Install]
+WantedBy=timers.target

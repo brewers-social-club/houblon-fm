@@ -1,0 +1,12 @@
+[Unit]
+Description=Houblon FM - Le Style du jeudi à 18:30
+
+[Timer]
+OnCalendar=Thu *-*-* 18:30:00 Europe/Paris
+Persistent=true
+AccuracySec=1min
+RandomizedDelaySec=0
+Unit=houblon-radio-format@style.service
+
+[Install]
+WantedBy=timers.target

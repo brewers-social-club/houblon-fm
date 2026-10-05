@@ -1,0 +1,12 @@
+[Unit]
+Description=Houblon FM - Le Palmarès le premier du mois à 21:30
+
+[Timer]
+OnCalendar=*-*-01 21:30:00 Europe/Paris
+Persistent=true
+AccuracySec=1min
+RandomizedDelaySec=0
+Unit=houblon-radio-format@awards.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,12 @@
+[Unit]
+Description=Houblon FM - La Visite le huit du mois à 21:30
+
+[Timer]
+OnCalendar=*-*-08 21:30:00 Europe/Paris
+Persistent=true
+AccuracySec=1min
+RandomizedDelaySec=0
+Unit=houblon-radio-format@portrait.service
+
+[Install]
+WantedBy=timers.target

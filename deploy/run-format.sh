@@ -3,6 +3,8 @@ set -euo pipefail
 
 readonly ROOT_DIR="/home/florian/bsc-app/radio"
 readonly UV_BIN="/home/florian/.local/bin/uv"
+readonly FLOCK_BIN="/usr/bin/flock"
+readonly SCHEDULER_LOCK="$ROOT_DIR/data/scheduler.lock"
 readonly TIMEZONE="Europe/Paris"
 
 declare -Ar DEFAULT_HOURS=(
@@ -70,6 +72,11 @@ if [[ ! -x $UV_BIN ]]; then
   exit 1
 fi
 
+if [[ ! -x $FLOCK_BIN ]]; then
+  printf 'flock est introuvable ou non exécutable: %s\n' "$FLOCK_BIN" >&2
+  exit 1
+fi
+
 day_names=("" "lundi" "mardi" "mercredi" "jeudi" "vendredi" "samedi" "dimanche")
 month_names=("" "janvier" "février" "mars" "avril" "mai" "juin" "juillet" "août" "septembre" "octobre" "novembre" "décembre")
 
@@ -83,12 +90,22 @@ title="${title_prefix} ${date_fr}"
 
 printf 'Lancement de %s : %s (%s h)\n' "$unit" "$title" "$hours"
 
+if [[ ${RADIO_RUN_FOREGROUND:-0} == 1 ]]; then
+  exec "$FLOCK_BIN" --wait 21600 "$SCHEDULER_LOCK" \
+    "$UV_BIN" run radio run \
+    --fmt "$format" \
+    --title "$title" \
+    --hours "$hours" \
+    --skip-collect
+fi
+
 exec systemd-run --user \
   --unit="$unit" \
   --collect \
   --property="WorkingDirectory=$ROOT_DIR" \
   --property="Environment=PATH=/home/florian/.local/bin:/usr/local/bin:/usr/bin:/bin" \
   --property=TimeoutStartSec=infinity \
+  "$FLOCK_BIN" --wait 21600 "$SCHEDULER_LOCK" \
   "$UV_BIN" run radio run \
   --fmt "$format" \
   --title "$title" \

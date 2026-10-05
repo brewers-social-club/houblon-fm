@@ -209,6 +209,11 @@ Les formats acceptés sont `journal`, `headlines`, `awards`, `week`, `portrait`,
 avant les générations automatisées. Les journaux sont disponibles avec, par exemple,
 `journalctl --user -fu houblon-radio-week`.
 
+La grille automatique utilise des timers systemd utilisateur persistants plutôt que cron. Les
+unités versionnées se trouvent dans `deploy/systemd/user/` et s'installent avec
+`deploy/install-systemd-schedule.sh`. Les lancements manuels via `deploy/run-format.sh` restent
+inchangés.
+
 `config/antenna.yaml` décrit une horloge d'antenne et les éléments générés par ElevenLabs :
 jingles/stingers via Sound Effects, idents et interventions multivoix, promos, dédicaces et
 musiques instrumentales originales via Music. La commande `radio imaging` génère uniquement les
