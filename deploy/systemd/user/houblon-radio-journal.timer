@@ -1,13 +1,12 @@
 [Unit]
-Description=Houblon FM - Le Journal du mardi et vendredi à 18:30
+Description=Houblon FM - collecte puis Journal quotidien à 04:30
 
 [Timer]
-OnCalendar=Tue *-*-* 18:30:00 Europe/Paris
-OnCalendar=Fri *-*-* 18:30:00 Europe/Paris
+OnCalendar=*-*-* 04:30:00 Europe/Paris
 Persistent=true
 AccuracySec=1min
 RandomizedDelaySec=0
-Unit=houblon-radio-format@journal.service
+Unit=houblon-radio-morning-journal.service
 
 [Install]
 WantedBy=timers.target

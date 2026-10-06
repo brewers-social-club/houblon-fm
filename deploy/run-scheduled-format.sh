@@ -10,7 +10,7 @@ if [[ -z $format ]]; then
 fi
 
 if [[ $format == journal ]]; then
-  exec "$ROOT_DIR/deploy/run-format.sh" journal 96
+  exec "$ROOT_DIR/deploy/run-format.sh" journal 24
 fi
 
 exec "$ROOT_DIR/deploy/run-format.sh" "$format"

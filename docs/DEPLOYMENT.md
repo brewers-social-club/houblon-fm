@@ -74,6 +74,8 @@ Houblon FM, sous peine de lancer chaque format deux fois.
 
 Les tâches planifiées et les lancements manuels de formats attendent jusqu'à six heures sur
 `data/scheduler.lock`. Ce verrou sérialise les rattrapages `Persistent=true` et évite de perdre un
-format si une collecte ou une autre génération est déjà active. Le journal planifié conserve sa
-fenêtre historique de 96 heures ; les autres formats utilisent les valeurs par défaut de
-`deploy/run-format.sh`.
+format si une collecte ou une autre génération est déjà active. À 04:30, le service matinal lance
+d'abord `houblon-radio-collect.service`, attend sa réussite, puis génère le journal quotidien. Cette
+dépendance garantit l'ordre collecte puis journal, y compris lors d'un rattrapage `Persistent=true`.
+Le journal planifié utilise une fenêtre fraîche de 24 heures ; les autres formats utilisent les
+valeurs par défaut de `deploy/run-format.sh`.

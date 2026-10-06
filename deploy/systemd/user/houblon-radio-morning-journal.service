@@ -1,0 +1,14 @@
+[Unit]
+Description=Houblon FM - collecte puis Journal quotidien
+Documentation=file:///home/florian/bsc-app/radio/docs/DEPLOYMENT.md
+Requires=houblon-radio-collect.service
+After=houblon-radio-collect.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/florian/bsc-app/radio
+Environment=PATH=/home/florian/.local/bin:/usr/local/bin:/usr/bin:/bin
+Environment=PYTHONUNBUFFERED=1
+Environment=RADIO_RUN_FOREGROUND=1
+ExecStart=/home/florian/bsc-app/radio/deploy/run-scheduled-format.sh journal
+TimeoutStartSec=infinity

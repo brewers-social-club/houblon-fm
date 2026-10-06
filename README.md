@@ -212,7 +212,8 @@ avant les générations automatisées. Les journaux sont disponibles avec, par e
 La grille automatique utilise des timers systemd utilisateur persistants plutôt que cron. Les
 unités versionnées se trouvent dans `deploy/systemd/user/` et s'installent avec
 `deploy/install-systemd-schedule.sh`. Les lancements manuels via `deploy/run-format.sh` restent
-inchangés.
+inchangés. À 04:30, un service matinal exécute la collecte, attend sa réussite, puis génère le
+journal quotidien avec les nouvelles informations.
 
 `config/antenna.yaml` décrit une horloge d'antenne et les éléments générés par ElevenLabs :
 jingles/stingers via Sound Effects, idents et interventions multivoix, promos, dédicaces et
